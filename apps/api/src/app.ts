@@ -16,7 +16,7 @@ import intelligenceRoutes from "./modules/intelligence/intelligence.routes.js";
 import collaborationRoutes from "./modules/collaboration/collaboration.routes.js";
 import notificationRoutes from "./modules/collaboration/notification.routes.js";
 import { errorHandler } from "./middleware/error-handler.js";
-import { createRequestId, isAllowedOrigin, parseAllowedOrigins, parseTrustProxy } from "./config/security.js";
+import { createRequestId, isAllowedOrigin, isApiRateLimitExemptPath, parseAllowedOrigins, parseTrustProxy } from "./config/security.js";
 import { getCollaborationTransactionStatus } from "./modules/collaboration/collaboration.service.js";
 import { checkClamAvHealth, documentStorageHealthCheck } from "./modules/delivery/document-storage.js";
 import { evaluateReadiness } from "./readiness.js";
@@ -48,7 +48,7 @@ const apiLimiter = rateLimit({
   limit: 300,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  skip: (request) => request.path === "/health" || request.path === "/ready",
+  skip: (request) => isApiRateLimitExemptPath(request.path),
   message: { success: false, message: "Too many requests; please try again later" },
 });
 app.use("/api", apiLimiter);
