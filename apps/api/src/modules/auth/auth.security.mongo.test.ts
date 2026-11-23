@@ -91,16 +91,18 @@ test("suspended organizations cannot use previously issued access tokens", async
   assert.equal(listed.status, 200);
   const listBody = await listed.json() as { data: { id: string }[] };
   assert.deepEqual(listBody.data.map((item) => item.id), [String(activeOrganization._id)]);
-  const switched = await fetch(baseUrl + "/api/v1/auth/switch-organization", {
+  const refreshed = await fetch(baseUrl + "/api/v1/auth/refresh", {
     method: "POST",
-    headers: {
-      authorization: "Bearer " + accessToken(String(user._id), String(organization._id), "owner"),
-      cookie: "buildsphere_refresh=" + refreshToken,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ organizationId: String(activeOrganization._id) }),
+    headers: { cookie: "buildsphere_refresh=" + refreshToken },
   });
-  assert.equal(switched.status, 200);
+  assert.equal(refreshed.status, 200);
+  const refreshedBody = await refreshed.json() as { data: { accessToken: string } };
+  const recoveredMe = await fetch(baseUrl + "/api/v1/auth/me", {
+    headers: { authorization: "Bearer " + refreshedBody.data.accessToken },
+  });
+  assert.equal(recoveredMe.status, 200);
+  const recoveredBody = await recoveredMe.json() as { data: { organization: { id: string } } };
+  assert.equal(recoveredBody.data.organization.id, String(activeOrganization._id));
 });
 
 test("replayed rotated refresh tokens revoke every active token in their family", async () => {
