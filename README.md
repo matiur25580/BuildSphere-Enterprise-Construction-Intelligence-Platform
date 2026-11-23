@@ -52,7 +52,7 @@ infrastructure/
 ### Setup
 
 1. Clone the repository.
-2. Copy `.env.example` to `apps/api/.env`.
+2. Copy `.env.example` to the repository-root `.env` (the API loads this file when started from the workspace root).
 3. Set `MONGODB_URI`, `CLIENT_URL`, and a unique `JWT_ACCESS_SECRET` (at least 32 characters).
 4. Install workspace dependencies from the repository root:
 
@@ -69,7 +69,7 @@ infrastructure/
 6. Open the web app at http://localhost:5173.
 7. Check API health at http://localhost:5000/api/v1/health.
 
-Never commit real credentials or `.env` files.
+Never commit real credentials or `.env` files. The root `.gitignore` excludes them.
 
 ## Authentication endpoints
 
