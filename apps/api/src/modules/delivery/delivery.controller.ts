@@ -1,14 +1,23 @@
 import type { Request, Response } from "express";
+import { createHash, randomUUID } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import mongoose from "mongoose";
 import { asyncHandler } from "../../common/async-handler.js";
 import { HttpError } from "../../common/http-error.js";
 import { Project } from "../projects/project.model.js";
+import { ProjectMembership } from "../projects/project-membership.model.js";
 import { Inspection } from "./inspection.model.js";
 import { Ncr, Capa } from "./ncr.model.js";
 import { SafetyEvent } from "./safety-event.model.js";
 import { Rfi } from "./rfi.model.js";
 import { Submittal } from "./submittal.model.js";
 import { ProjectDocument } from "./project-document.model.js";
+import { DocumentAsset } from "./document-asset.model.js";
+import { DocumentAuditEvent } from "./document-audit.model.js";
+import { documentStorageDirectory, normalizeDocumentFile, scanDocumentWithClamAv } from "./document-storage.js";
+import { getCollaborationTransactionStatus } from "../collaboration/collaboration.service.js";
 import { runProjectMutationWithEvent } from "../collaboration/collaboration.service.js";
 import { createInspectionSchema, inspectionStatusSchema, createNcrSchema, ncrStatusSchema, createCapaSchema, capaStatusSchema, createSafetyEventSchema, safetyStatusSchema, createRfiSchema, respondRfiSchema, createSubmittalSchema, reviewSubmittalSchema, createDocumentSchema, addDocumentVersionSchema, documentApprovalSchema } from "./delivery.schemas.js";
 
@@ -56,6 +65,93 @@ export const submitSubmittal = asyncHandler(async (request: Request, response: R
 export const reviewSubmittal = asyncHandler(async (request: Request, response: Response) => { const { auth, scope } = await projectContext(request); const input = reviewSubmittalSchema.parse(request.body); const item = await Submittal.findOne({ _id: String(request.params.submittalId), ...scope }); if (!item) throw new HttpError(404, "Submittal not found"); transition(item.status, input.status, { submitted: ["under_review", "approved", "approved_as_noted", "rejected", "resubmit"], under_review: ["approved", "approved_as_noted", "rejected", "resubmit"] }, "submittal"); item.status = input.status; item.reviewerResponse = input.reviewerResponse ?? ""; item.reviewedBy = new mongoose.Types.ObjectId(auth.userId); item.reviewedAt = new Date(); await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "coordination.submittal_reviewed", targetType: "submittal", targetId: String(item._id), summary: "Submittal review completed" }, (session) => item.save(session ? { session } : {})); response.json({ success: true, data: item }); });
 
 export const listDocuments = asyncHandler(async (request: Request, response: Response) => { const { scope } = await projectContext(request); response.json({ success: true, data: await ProjectDocument.find(scope).sort({ documentNo: 1 }).limit(100).lean() }); });
-export const createDocument = asyncHandler(async (request: Request, response: Response) => { const { auth, scope } = await projectContext(request); const input = createDocumentSchema.parse(request.body); const { fileUrl, fileName, checksum, notes, ...metadata } = input; const item = new ProjectDocument({ ...metadata, ...scope, createdBy: auth.userId, currentVersion: 1, versions: [{ version: 1, fileUrl, fileName, checksum, notes, uploadedBy: auth.userId }] }); await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "documents.created", targetType: "document", targetId: String(item._id), summary: "Project document registered" }, (session) => item.save(session ? { session } : {})); response.status(201).json({ success: true, data: item }); });
+export const createDocument = asyncHandler(async (request: Request, response: Response) => { const { auth, scope } = await projectContext(request); const input = createDocumentSchema.parse(request.body); const { fileUrl, fileName, checksum, notes, ...metadata } = input; const versions = fileUrl && fileName ? [{ version: 1, fileUrl, fileName, checksum, notes, uploadedBy: auth.userId }] : []; const item = new ProjectDocument({ ...metadata, ...scope, createdBy: auth.userId, currentVersion: versions.length, versions }); await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "documents.created", targetType: "document", targetId: String(item._id), summary: "Project document registered" }, (session) => item.save(session ? { session } : {})); response.status(201).json({ success: true, data: item }); });
 export const addDocumentVersion = asyncHandler(async (request: Request, response: Response) => { const { auth, scope } = await projectContext(request); const input = addDocumentVersionSchema.parse(request.body); const item = await ProjectDocument.findOne({ _id: String(request.params.documentId), ...scope }); if (!item) throw new HttpError(404, "Document not found"); if (item.approvalStatus === "submitted" || item.approvalStatus === "approved") throw new HttpError(409, "A new version cannot be added while approval is pending or approved"); const nextVersion = item.currentVersion + 1; item.versions.push({ version: nextVersion, ...input, uploadedBy: new mongoose.Types.ObjectId(auth.userId), uploadedAt: new Date() }); item.currentVersion = nextVersion; item.approvalStatus = "draft"; await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "documents.version_added", targetType: "document", targetId: String(item._id), summary: `Document version ${nextVersion} added` }, (session) => item.save(session ? { session } : {})); response.status(201).json({ success: true, data: item }); });
 export const updateDocumentApproval = asyncHandler(async (request: Request, response: Response) => { const { auth, scope } = await projectContext(request); const input = documentApprovalSchema.parse(request.body); const item = await ProjectDocument.findOne({ _id: String(request.params.documentId), ...scope }); if (!item) throw new HttpError(404, "Document not found"); const next = input.action; if (next === "submitted") transition(item.approvalStatus, next, { draft: ["submitted"], rejected: ["submitted"], revision_requested: ["submitted"] }, "document approval"); else transition(item.approvalStatus, next, { submitted: ["approved", "rejected", "revision_requested"] }, "document approval"); item.approvalStatus = next; item.approvalHistory.push({ action: next, comment: input.comment ?? "", actorId: new mongoose.Types.ObjectId(auth.userId), actedAt: new Date() }); await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "documents.approval_changed", targetType: "document", targetId: String(item._id), summary: "Document approval status changed" }, (session) => item.save(session ? { session } : {})); response.json({ success: true, data: item }); });
+
+
+export const uploadDocumentFile = asyncHandler(async (request: Request, response: Response) => {
+  const { auth, scope } = await projectContext(request);
+  if (getCollaborationTransactionStatus() !== "enabled") throw new HttpError(503, "Secure document uploads require MongoDB replica-set or sharded-cluster transactions");
+  const member = await ProjectMembership.exists({ ...scope, userId: auth.userId, status: "active" });
+  if (!member) throw new HttpError(403, "Active project membership is required to upload documents");
+  const documentId = String(request.params.documentId);
+  if (!mongoose.isValidObjectId(documentId)) throw new HttpError(404, "Document not found");
+  const normalized = normalizeDocumentFile(request.body, request.header("x-file-name"), request.header("content-type"));
+  await scanDocumentWithClamAv(normalized.buffer);
+  const storageKey = randomUUID();
+  const storageDirectory = documentStorageDirectory();
+  const filePath = join(storageDirectory, storageKey);
+  const sha256 = createHash("sha256").update(normalized.buffer).digest("hex");
+  await mkdir(storageDirectory, { recursive: true, mode: 0o700 });
+  await writeFile(filePath, normalized.buffer, { flag: "wx", mode: 0o600 });
+  try {
+    const assetId = new mongoose.Types.ObjectId();
+    const result = await runProjectMutationWithEvent({
+      organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId,
+      eventType: "documents.version_added", targetType: "document", targetId: documentId,
+      summary: "A malware-scanned document version was uploaded",
+    }, async (session) => {
+      const query = ProjectDocument.findOne({ _id: documentId, ...scope });
+      if (session) query.session(session);
+      const item = await query;
+      if (!item) throw new HttpError(404, "Document not found");
+      if (item.approvalStatus === "submitted" || item.approvalStatus === "approved") throw new HttpError(409, "A new version cannot be added while approval is pending or approved");
+      const version = item.currentVersion + 1;
+      const asset = new DocumentAsset({
+        _id: assetId, ...scope, documentId: item._id, version, storageKey,
+        fileName: normalized.fileName, contentType: normalized.contentType,
+        byteSize: normalized.buffer.length, sha256, scanStatus: "clean", uploadedBy: auth.userId,
+      });
+      await asset.save(session ? { session } : {});
+      item.versions.push({
+        version, fileAssetId: asset._id,
+        fileUrl: `/api/v1/projects/${request.params.projectId}/delivery/documents/${item._id}/files/${asset._id}/download`,
+        fileName: normalized.fileName, checksum: sha256, notes: "Malware scan passed",
+        uploadedBy: new mongoose.Types.ObjectId(auth.userId), uploadedAt: new Date(),
+      });
+      item.currentVersion = version;
+      item.approvalStatus = "draft";
+      await item.save(session ? { session } : {});
+      await DocumentAuditEvent.create([{
+        ...scope, documentId: item._id, assetId: asset._id, actorId: auth.userId,
+        action: "uploaded", fileName: normalized.fileName, sha256,
+        requestId: String(response.locals.requestId ?? ""),
+      }], session ? { session } : {});
+      return item;
+    });
+    response.status(201).json({ success: true, data: result, asset: { id: String(assetId), fileName: normalized.fileName, contentType: normalized.contentType, byteSize: normalized.buffer.length, sha256, scanStatus: "clean" } });
+  } catch (error) {
+    await unlink(filePath).catch(() => undefined);
+    throw error;
+  }
+});
+
+export const downloadDocumentFile = asyncHandler(async (request: Request, response: Response) => {
+  const { auth, scope } = await projectContext(request);
+  const member = await ProjectMembership.exists({ ...scope, userId: auth.userId, status: "active" });
+  if (!member) throw new HttpError(403, "Active project membership is required to access project documents");
+  const documentId = String(request.params.documentId);
+  const assetId = String(request.params.assetId);
+  if (!mongoose.isValidObjectId(documentId) || !mongoose.isValidObjectId(assetId)) throw new HttpError(404, "Document file not found");
+  const [document, asset] = await Promise.all([
+    ProjectDocument.exists({ _id: documentId, ...scope }),
+    DocumentAsset.findOne({ _id: assetId, documentId, ...scope, scanStatus: "clean" }).lean(),
+  ]);
+  if (!document || !asset) throw new HttpError(404, "Document file not found");
+  const filePath = join(documentStorageDirectory(), asset.storageKey);
+  try { await stat(filePath); } catch { throw new HttpError(404, "Stored document file is unavailable"); }
+  await DocumentAuditEvent.create({
+    ...scope, documentId, assetId: asset._id, actorId: auth.userId,
+    action: "download_authorized", fileName: asset.fileName, sha256: asset.sha256,
+    requestId: String(response.locals.requestId ?? ""),
+  });
+  response.setHeader("Content-Type", asset.contentType);
+  response.setHeader("Content-Length", String(asset.byteSize));
+  response.setHeader("Content-Disposition", `attachment; filename="document"; filename*=UTF-8''${encodeURIComponent(asset.fileName)}`);
+  response.setHeader("Cache-Control", "private, no-store, max-age=0");
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  const stream = createReadStream(filePath);
+  stream.on("error", () => response.destroy());
+  stream.pipe(response);
+});
