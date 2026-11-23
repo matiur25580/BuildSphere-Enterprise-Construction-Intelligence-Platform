@@ -65,22 +65,19 @@ export const configureCollaborationTransactions = async (): Promise<boolean> => 
   return supported;
 };
 
+export const getCollaborationTransactionStatus = () => transactionSupport === "enabled" ? "enabled" : transactionSupport === "disabled" ? "non_atomic_fallback" : "unverified";
+
 export const runProjectMutationWithEvent = async <T>(
   input: ProjectEventInput,
   mutation: (session?: ClientSession) => Promise<T>,
 ): Promise<T> => {
   if (transactionSupport === "unverified") throw new Error("Collaboration transaction topology has not been verified; configure it after connecting to MongoDB before accepting writes.");
   if (transactionSupport === "enabled") {
-    const session = await mongoose.startSession();
-    try {
-      return await session.withTransaction(async () => {
-        const result = await mutation(session);
-        await publishProjectEvent(input, session);
-        return result;
-      }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } }) as T;
-    } finally {
-      await session.endSession();
-    }
+    return await mongoose.connection.transaction(async (session) => {
+      const result = await mutation(session);
+      await publishProjectEvent(input, session);
+      return result;
+    }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } }) as T;
   }
   const result = await mutation();
   // Explicit non-transactional fallback: enqueue failure is surfaced, but the domain write may already be committed.
@@ -162,14 +159,6 @@ export const processCollaborationOutboxBatch = async (batchSize = 25): Promise<n
     }
   }
   return delivered;
-};
-
-export const publishProjectEventSafely = async (input: ProjectEventInput): Promise<void> => {
-  try {
-    await publishProjectEvent(input);
-  } catch (error) {
-    console.error("Collaboration outbox enqueue failed", error);
-  }
 };
 
 export const startCollaborationOutboxWorker = (intervalMs = 2_000) => {
