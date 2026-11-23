@@ -4,6 +4,8 @@ import { asyncHandler } from "../../common/async-handler.js";
 import { HttpError } from "../../common/http-error.js";
 import { Project } from "./project.model.js";
 import { WorkItem } from "./work-item.model.js";
+import { ProjectMembership } from "./project-membership.model.js";
+import { publishProjectEventSafely } from "../collaboration/collaboration.service.js";
 import { createProjectSchema, updateProjectSchema, createWorkItemSchema, updateWorkItemSchema } from "./project.schemas.js";
 
 const context = (request: Request) => {
@@ -31,6 +33,7 @@ export const createProject = asyncHandler(async (request: Request, response: Res
   const auth = context(request);
   const input = createProjectSchema.parse(request.body);
   const project = await Project.create({ ...input, organizationId: auth.organizationId, createdBy: auth.userId });
+  await ProjectMembership.create({ organizationId: auth.organizationId, projectId: project._id, userId: auth.userId, role: "project_manager", status: "active", addedBy: auth.userId });
   response.status(201).json({ success: true, data: project });
 });
 
@@ -81,9 +84,14 @@ export const createWorkItem = asyncHandler(async (request: Request, response: Re
     const valid = await WorkItem.countDocuments({ _id: { $in: input.predecessorIds }, projectId, organizationId: auth.organizationId });
     if (valid !== new Set(input.predecessorIds).size) throw new HttpError(400, "Every predecessor must belong to this project");
   }
+  if (input.assignedUserId) {
+    const assignee = await ProjectMembership.exists({ organizationId: auth.organizationId, projectId, userId: input.assignedUserId, status: "active" });
+    if (!assignee) throw new HttpError(400, "Assignee must be an active member of this project");
+  }
   const item = await WorkItem.create({
     ...input, parentId: input.parentId || null, organizationId: auth.organizationId, projectId,
   });
+  if (input.assignedUserId) await publishProjectEventSafely({ organizationId: auth.organizationId, projectId, actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(item._id), summary: `Work item assigned: ${item.title}`, recipientIds: [input.assignedUserId] });
   response.status(201).json({ success: true, data: item });
 });
 
@@ -97,13 +105,20 @@ export const updateWorkItem = asyncHandler(async (request: Request, response: Re
   const nextStart = input.startDate ?? existing.startDate;
   const nextEnd = input.endDate ?? existing.endDate;
   if (nextEnd < nextStart) throw new HttpError(400, "End date must be on or after the start date");
+  if (input.assignedUserId) {
+    const assignee = await ProjectMembership.exists({ organizationId: auth.organizationId, projectId: request.params.projectId, userId: input.assignedUserId, status: "active" });
+    if (!assignee) throw new HttpError(400, "Assignee must be an active member of this project");
+  }
   if (input.predecessorIds) {
     if (input.predecessorIds.some((id) => id === String(existing._id))) throw new HttpError(400, "An item cannot depend on itself");
     const valid = await WorkItem.countDocuments({ _id: { $in: input.predecessorIds }, projectId: request.params.projectId, organizationId: auth.organizationId });
     if (valid !== new Set(input.predecessorIds).size) throw new HttpError(400, "Every predecessor must belong to this project");
   }
+  const previousAssignee = existing.assignedUserId ? String(existing.assignedUserId) : null;
   Object.assign(existing, input);
   if (input.status === "completed" && input.progress === undefined) existing.progress = 100;
   await existing.save();
+  const nextAssignee = existing.assignedUserId ? String(existing.assignedUserId) : null;
+  if (nextAssignee && nextAssignee !== previousAssignee) await publishProjectEventSafely({ organizationId: auth.organizationId, projectId: request.params.projectId, actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(existing._id), summary: `Work item assigned: ${existing.title}`, recipientIds: [nextAssignee] });
   response.json({ success: true, data: existing });
 });
