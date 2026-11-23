@@ -49,3 +49,13 @@ export const projectActivityScope = (organizationId: string, projectId: string) 
   organizationId: new mongoose.Types.ObjectId(organizationId),
   projectId: new mongoose.Types.ObjectId(projectId),
 });
+
+export const publishProjectEventSafely = async (input: EventInput): Promise<void> => {
+  try {
+    await publishProjectEvent(input);
+  } catch (error) {
+    // Domain writes must not be reported as failed after they have committed.
+    // Operational monitoring should alert on this log; durable outbox delivery is a follow-up.
+    console.error("Collaboration event delivery failed", error);
+  }
+};
