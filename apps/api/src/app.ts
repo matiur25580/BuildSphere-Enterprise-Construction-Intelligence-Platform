@@ -11,6 +11,8 @@ import commercialRoutes from "./modules/commercial/commercial.routes.js";
 import fieldRoutes from "./modules/field/field.routes.js";
 import deliveryRoutes from "./modules/delivery/delivery.routes.js";
 import intelligenceRoutes from "./modules/intelligence/intelligence.routes.js";
+import collaborationRoutes from "./modules/collaboration/collaboration.routes.js";
+import notificationRoutes from "./modules/collaboration/notification.routes.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { createRequestId, isAllowedOrigin, parseAllowedOrigins, parseTrustProxy } from "./config/security.js";
 
@@ -73,6 +75,8 @@ app.use("/api/v1/projects/:projectId/commercial", commercialRoutes);
 app.use("/api/v1/projects/:projectId/field", fieldRoutes);
 app.use("/api/v1/projects/:projectId/delivery", deliveryRoutes);
 app.use("/api/v1/projects/:projectId/intelligence", intelligenceRoutes);
+app.use("/api/v1/projects/:projectId/collaboration", collaborationRoutes);
+app.use("/api/v1/notifications", notificationRoutes);
 app.use(errorHandler);
 
 export default app;
