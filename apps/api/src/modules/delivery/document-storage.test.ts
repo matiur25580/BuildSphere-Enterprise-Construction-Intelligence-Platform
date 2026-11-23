@@ -53,7 +53,7 @@ test("S3 adapter signs private object requests and supports temporary credential
     const token = new Headers(init?.headers).get("x-amz-security-token") ?? undefined;
     requests.push({ method, url, authorization, token });
     const key = url.split("/").pop() ?? "";
-    if (method === "PUT") { objects.set(key, Buffer.from(init?.body as ArrayBuffer)); return new Response(null, { status: 200 }); }
+    if (method === "PUT") { objects.set(key, Buffer.from(init?.body as Uint8Array)); return new Response(null, { status: 200 }); }
     if (method === "GET") { const value = objects.get(key); return value ? new Response(value, { status: 200 }) : new Response(null, { status: 404 }); }
     if (method === "DELETE") { objects.delete(key); return new Response(null, { status: 204 }); }
     if (method === "HEAD") return new Response(null, { status: 200 });
@@ -67,7 +67,7 @@ test("S3 adapter signs private object requests and supports temporary credential
     await deleteDocumentObject("object_456");
     assert.equal(requests.length, 4);
     for (const request of requests) {
-      assert.match(request.authorization, /^AWS4-HMAC-SHA256 Credential=test-access\\//);
+      assert.match(request.authorization, /^AWS4-HMAC-SHA256 Credential=test-access\//);
       assert.equal(request.token, "temporary-session-token");
       assert.match(request.url, /buildsphere-private/);
     }
