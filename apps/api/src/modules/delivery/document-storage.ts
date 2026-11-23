@@ -88,6 +88,17 @@ const provider = () => {
 };
 export const documentStorageDirectory = () => process.env.DOCUMENT_STORAGE_DIR ?? "/var/lib/buildsphere/documents";
 
+/** Bound S3 readiness probes so a slow provider cannot stall load-balancer checks. */
+export const documentStorageHealthTimeoutMs = (): number => {
+  const configured = process.env.DOCUMENT_STORAGE_HEALTH_TIMEOUT_MS;
+  if (configured === undefined || configured.trim() === "") return 3_000;
+  const timeoutMs = Number(configured);
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 500 || timeoutMs > 30_000) {
+    throw new HttpError(503, "DOCUMENT_STORAGE_HEALTH_TIMEOUT_MS must be an integer from 500 to 30000");
+  }
+  return timeoutMs;
+};
+
 /** Validate required storage settings before the API begins accepting traffic. */
 export const assertDocumentStorageConfigured = (): void => {
   const mode = provider();
@@ -115,7 +126,7 @@ export const documentStorageHealthCheck = async (): Promise<void> => {
   }
   if (mode === "s3") {
     try {
-      await client().send(new HeadBucketCommand({ Bucket: bucket() }));
+      await client().send(new HeadBucketCommand({ Bucket: bucket() }), { abortSignal: AbortSignal.timeout(documentStorageHealthTimeoutMs()) });
     } catch {
       throw new HttpError(503, "S3 document storage is unavailable or misconfigured");
     }
