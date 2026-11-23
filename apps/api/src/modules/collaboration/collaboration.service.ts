@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { type ClientSession } from "mongoose";
 import { randomUUID } from "node:crypto";
 import { Activity, Notification, collaborationEventTypes } from "./collaboration.models.js";
 import { CollaborationOutbox } from "./outbox.model.js";
@@ -31,9 +31,9 @@ export const projectMemberScope = (organizationId: string, projectId: string, us
   ...(userId ? { userId: new mongoose.Types.ObjectId(userId) } : {}),
 });
 
-export const publishProjectEvent = async (input: ProjectEventInput): Promise<void> => {
+export const publishProjectEvent = async (input: ProjectEventInput, session?: ClientSession): Promise<void> => {
   if (!collaborationEventTypes.includes(input.eventType)) throw new Error("Unsupported collaboration event");
-  await CollaborationOutbox.create({
+  await CollaborationOutbox.create([{
     organizationId: input.organizationId,
     projectId: input.projectId,
     actorId: input.actorId,
@@ -44,7 +44,48 @@ export const publishProjectEvent = async (input: ProjectEventInput): Promise<voi
     recipientIds: (input.recipientIds ?? []).map((id) => new mongoose.Types.ObjectId(id)),
     status: "pending",
     nextAttemptAt: new Date(),
-  });
+  }], session ? { session } : {});
+};
+
+let transactionSupport: "enabled" | "disabled" | "unverified" = "unverified";
+
+export const configureCollaborationTransactions = async (): Promise<boolean> => {
+  const mode = process.env.OUTBOX_TRANSACTION_MODE ?? "auto";
+  if (!["auto", "required", "disabled"].includes(mode)) throw new Error("OUTBOX_TRANSACTION_MODE must be auto, required, or disabled");
+  if (mode === "disabled") {
+    transactionSupport = "disabled";
+    console.warn("Collaboration outbox transactions are disabled by configuration; event enqueue is non-atomic.");
+    return false;
+  }
+  const hello = await mongoose.connection.db?.admin().command({ hello: 1 });
+  const supported = Boolean(hello?.setName || hello?.msg === "isdbgrid");
+  transactionSupport = supported ? "enabled" : "disabled";
+  if (!supported && mode === "required") throw new Error("OUTBOX_TRANSACTION_MODE=required but MongoDB is not a replica set or mongos; configure a transaction-capable MongoDB topology.");
+  if (!supported) console.warn("MongoDB topology does not support transactions. Collaboration events use the documented non-atomic fallback. Set OUTBOX_TRANSACTION_MODE=required to fail startup instead.");
+  return supported;
+};
+
+export const runProjectMutationWithEvent = async <T>(
+  input: ProjectEventInput,
+  mutation: (session?: ClientSession) => Promise<T>,
+): Promise<T> => {
+  if (transactionSupport === "unverified") throw new Error("Collaboration transaction topology has not been verified; configure it after connecting to MongoDB before accepting writes.");
+  if (transactionSupport === "enabled") {
+    const session = await mongoose.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        const result = await mutation(session);
+        await publishProjectEvent(input, session);
+        return result;
+      }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } }) as T;
+    } finally {
+      await session.endSession();
+    }
+  }
+  const result = await mutation();
+  // Explicit non-transactional fallback: enqueue failure is surfaced, but the domain write may already be committed.
+  await publishProjectEvent(input);
+  return result;
 };
 
 export const outboxLeaseFilter = (id: unknown, leaseToken: string) => ({ _id: id, status: "processing", leaseToken });
