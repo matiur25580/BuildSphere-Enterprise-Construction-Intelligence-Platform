@@ -1,0 +1,33 @@
+name: Bootstrap npm lockfile
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/npm-lockfile-bootstrap.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  generate-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Generate authentic workspace lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Verify clean lockfile installation
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Upload generated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildsphere-npm-lockfile
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 3
