@@ -194,7 +194,7 @@ function App() {
           {fieldProject && accessToken && <FieldWorkspace project={fieldProject} token={accessToken} onClose={() => setFieldProject(null)} />}
           {deliveryProject && accessToken && <DeliveryWorkspace project={deliveryProject} token={accessToken} onClose={() => setDeliveryProject(null)} />}
           {intelligenceProject && accessToken && <IntelligenceWorkspace project={intelligenceProject} token={accessToken} onClose={() => setIntelligenceProject(null)} />}
-          {collaborationOpen && accessToken && <CollaborationWorkspace projects={projects} token={accessToken} onClose={() => setCollaborationOpen(false)} />}
+          {collaborationOpen && accessToken && <CollaborationWorkspace projects={projects} token={accessToken} canManageMembers={["owner", "admin", "project_manager"].includes(session.organization?.role ?? "")} onClose={() => setCollaborationOpen(false)} />}
         </section>
       </main>
     );
