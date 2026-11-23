@@ -148,6 +148,18 @@ export const createDocumentUpload = asyncHandler(async (request: Request, respon
   response.status(201).json({ success: true, data: { uploadId: String(session._id), partSize: DOCUMENT_UPLOAD_PART_BYTES, expectedParts, expiresAt: session.expiresAt, receivedParts: [] } });
 });
 
+
+export const getDocumentUpload = asyncHandler(async (request: Request, response: Response) => {
+  const { auth, scope } = await projectContext(request);
+  await requireDocumentUploadManager(scope, auth.userId, auth.role);
+  const uploadId = String(request.params.uploadId);
+  if (!mongoose.isValidObjectId(uploadId)) throw new HttpError(404, "Upload session not found");
+  const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, createdBy: auth.userId, status: { $in: ["uploading", "completing"] } }).lean();
+  if (!session) throw new HttpError(404, "Upload session not found");
+  if (session.expiresAt.getTime() <= Date.now()) throw new HttpError(410, "Upload session has expired");
+  response.json({ success: true, data: { uploadId: String(session._id), status: session.status, fileName: session.fileName, totalBytes: session.totalBytes, partSize: DOCUMENT_UPLOAD_PART_BYTES, expectedParts: session.expectedParts, receivedParts: session.parts.map((part) => ({ partNumber: part.partNumber, byteSize: part.byteSize, sha256: part.sha256 })), expiresAt: session.expiresAt } });
+});
+
 export const uploadDocumentPart = asyncHandler(async (request: Request, response: Response) => {
   const { auth, scope } = await projectContext(request);
   await requireDocumentUploadManager(scope, auth.userId, auth.role);
@@ -209,8 +221,10 @@ export const completeDocumentUpload = asyncHandler(async (request: Request, resp
   const normalized = normalizeDocumentFile(combined, encodeURIComponent(session.fileName), session.contentType);
   await scanDocumentWithClamAv(normalized.buffer);
   const storageKey = randomUUID();
-  await putDocumentObject(storageKey, normalized.buffer, normalized.contentType);
+  const lockedSession = await DocumentUploadSession.findOneAndUpdate({ _id: session._id, ...scope, createdBy: auth.userId, status: "uploading", expiresAt: { $gt: new Date() } }, { $set: { status: "completing" } }, { new: true });
+  if (!lockedSession) throw new HttpError(409, "Upload session is already being completed or has changed");
   try {
+    await putDocumentObject(storageKey, normalized.buffer, normalized.contentType);
     const assetId = new mongoose.Types.ObjectId();
     const result = await runProjectMutationWithEvent({
       organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId,
@@ -237,6 +251,7 @@ export const completeDocumentUpload = asyncHandler(async (request: Request, resp
     response.status(201).json({ success: true, data: result, asset: { id: String(assetId), fileName: normalized.fileName, contentType: normalized.contentType, byteSize: normalized.buffer.length, sha256, scanStatus: "clean" } });
   } catch (error) {
     await deleteDocumentObject(storageKey).catch(() => undefined);
+    await DocumentUploadSession.updateOne({ _id: session._id, ...scope, createdBy: auth.userId, status: "completing" }, { $set: { status: "uploading" } }).catch(() => undefined);
     throw error;
   }
 });
