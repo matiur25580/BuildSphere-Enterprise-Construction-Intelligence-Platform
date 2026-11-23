@@ -127,7 +127,7 @@ export const prepareDocumentPurgeManifest = asyncHandler(async (request: Request
   const liveById = new Map(liveAssets.map((asset) => [String(asset._id), asset]));
   for (const candidate of purge.candidates) {
     const live = liveById.get(String(candidate.assetId));
-    if (!live || live.storageKey !== candidate.storageKey || live.sha256 !== candidate.sha256 || live.byteSize !== candidate.byteSize) {
+    if (!live || String(live.documentId) !== String(candidate.documentId) || live.version !== candidate.version || live.fileName !== candidate.fileName || live.storageKey !== candidate.storageKey || live.sha256 !== candidate.sha256 || live.byteSize !== candidate.byteSize) {
       throw new HttpError(409, "Manifest blocked: an asset changed after the request was submitted");
     }
   }
