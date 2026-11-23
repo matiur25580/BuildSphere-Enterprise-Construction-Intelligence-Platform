@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "test": "npm run build && node --test dist/config/security.test.js dist/modules/intelligence/intelligence.rules.test.js dist/modules/collaboration/collaboration.access.test.js dist/modules/collaboration/collaboration.mongo.test.js dist/modules/delivery/documents.mongo.test.js dist/modules/commercial/commercial.schemas.test.js dist/modules/delivery/document-storage.test.js",
-    "migrate:financial-decimals": "node scripts/migrate-financial-decimals.mjs"
+    "migrate:financial-decimals": "node scripts/migrate-financial-decimals.mjs",
+    "migrate:document-files-to-s3": "node scripts/migrate-document-files-to-s3.mjs"
   },
   "dependencies": {
     "compression": "^1.8.1",
