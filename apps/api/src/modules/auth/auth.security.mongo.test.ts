@@ -189,7 +189,7 @@ test("members can list active organizations and switch session context securely"
   const refreshedMeBody = await refreshedMe.json() as { data: { organization: { id: string } } };
   assert.equal(refreshedMeBody.data.organization.id, String(secondOrganization._id));
 
-  const cookie = switchResponse.headers.get("set-cookie")?.split(";")[0];
+  const cookie = refreshed.headers.get("set-cookie")?.split(";")[0];
   assert.ok(cookie);
   const invalidSwitch = await fetch(baseUrl + "/api/v1/auth/switch-organization", {
     method: "POST",
