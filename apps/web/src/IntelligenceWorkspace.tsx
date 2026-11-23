@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api/v1";
 type Project = { _id: string; code: string; name: string };
@@ -12,8 +12,8 @@ const labels: Record<string,string> = { overdueTasks:"Overdue tasks", blockedTas
 export function IntelligenceWorkspace({ project, token, onClose }: { project: Project; token: string; onClose: () => void }) {
   const base = "/projects/" + project._id + "/intelligence";
   const [data,setData]=useState<Intelligence|null>(null); const [loading,setLoading]=useState(true); const [error,setError]=useState(""); const [question,setQuestion]=useState(""); const [asking,setAsking]=useState(false); const [answer,setAnswer]=useState<Answer|null>(null);
-  const refresh=async()=>{setLoading(true);try{setData(await api<Intelligence>(base+"/insights",token));setError("");}catch(e){setError(e instanceof Error?e.message:"Unable to load intelligence");}finally{setLoading(false);}};
-  useEffect(()=>{void refresh();},[project._id,token]);
+  const refresh=useCallback(async()=>{setLoading(true);try{setData(await api<Intelligence>(base+"/insights",token));setError("");}catch(e){setError(e instanceof Error?e.message:"Unable to load intelligence");}finally{setLoading(false);}},[base,token]);
+  useEffect(()=>{void refresh();},[refresh]);
   const ask=async(e:FormEvent)=>{e.preventDefault();setAsking(true);try{setAnswer(await api<Answer>(base+"/ask",token,{method:"POST",body:JSON.stringify({question})}));setError("");}catch(err){setError(err instanceof Error?err.message:"Unable to query evidence");}finally{setAsking(false);}};
   const metricEntries=data?Object.entries(data.metrics).filter(([key,value])=>labels[key]&&value!==null):[];
   return <section className="intelligence-panel"><div className="panel-heading"><div><p className="eyebrow">PROJECT INTELLIGENCE / EVIDENCE RADAR · {project.code}</p><h2>{project.name} · Risk & insight centre</h2></div><div className="intelligence-actions"><button className="ghost-button" onClick={()=>void refresh()} disabled={loading}>Refresh analysis</button><button className="ghost-button" onClick={onClose}>Close</button></div></div>
