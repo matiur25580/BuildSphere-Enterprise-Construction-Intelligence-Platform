@@ -17,7 +17,7 @@ The API uses the AWS credential provider chain when explicit credentials are omi
 
 ## Existing local files
 
-If an existing deployment has document assets on local disk, copy every object named by `DocumentAsset.storageKey` from `DOCUMENT_STORAGE_DIR` to the configured bucket using the exact same object key before switching the API to the S3 provider. Verify byte size and SHA-256 against each `DocumentAsset` record before cutover. Keep a protected backup of the original directory until downloads have been verified on all application instances. Do not point multiple production instances at independent local disks.
+If an existing deployment has document assets on local disk, keep the application configured for local storage and set the S3 bucket/region credentials. From `apps/api`, run `npm run migrate:document-files-to-s3` first; this dry run verifies each local file against its recorded byte size and SHA-256. Then run `npm run migrate:document-files-to-s3 -- --apply` to copy objects using the exact existing `DocumentAsset.storageKey` values. The migration is re-runnable: matching objects with matching size and checksum metadata are skipped, while mismatches stop the run. Afterward switch the API to `DOCUMENT_STORAGE_PROVIDER=s3`, verify downloads on every instance, and retain a protected backup of the original directory until validation is complete. Do not point multiple production instances at independent local disks.
 
 ## Development and tests
 
