@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { asyncHandler } from "../../common/async-handler.js";
 import { HttpError } from "../../common/http-error.js";
 import { Project } from "../projects/project.model.js";
+import { ProjectMembership } from "../projects/project-membership.model.js";
 import { Activity, Notification } from "./collaboration.models.js";
 import { notificationReadSchema, paginationSchema } from "./collaboration.schemas.js";
 import { notificationOwnerScope, projectActivityScope } from "./collaboration.service.js";
@@ -16,6 +17,10 @@ export const listActivity = asyncHandler(async (request: Request, response: Resp
   const context = auth(request);
   const projectId = String(request.params.projectId);
   if (!mongoose.isValidObjectId(projectId) || !await Project.exists({ _id: projectId, organizationId: context.organizationId })) throw new HttpError(404, "Project not found");
+  if (!["owner", "admin", "project_manager"].includes(context.role)) {
+    const member = await ProjectMembership.exists({ organizationId: context.organizationId, projectId, userId: context.userId, status: "active" });
+    if (!member) throw new HttpError(403, "You are not a member of this project");
+  }
   const { limit, page } = paginationSchema.parse(request.query);
   const scope = projectActivityScope(context.organizationId, projectId);
   const [items, total] = await Promise.all([
