@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import { authenticate, requireRoles } from "../../middleware/authenticate.js";
 import * as controller from "./delivery.controller.js";
 
@@ -29,5 +29,7 @@ router.patch("/submittals/:submittalId/review", managers, controller.reviewSubmi
 router.get("/documents", controller.listDocuments);
 router.post("/documents", managers, controller.createDocument);
 router.post("/documents/:documentId/versions", managers, controller.addDocumentVersion);
+router.post("/documents/:documentId/files", managers, express.raw({ type: ["application/pdf", "image/png", "image/jpeg", "image/webp"], limit: "25mb" }), controller.uploadDocumentFile);
+router.get("/documents/:documentId/files/:assetId/download", controller.downloadDocumentFile);
 router.patch("/documents/:documentId/approval", managers, controller.updateDocumentApproval);
 export default router;
