@@ -13,6 +13,7 @@
 - Helmet security headers and credentialed, origin-restricted CORS are enabled.
 - Organization ownership and membership are created server-side during registration.
 - API authentication middleware derives user, organization, and role claims from the signed access token.
+- Protected requests re-check that the user and organization membership are still active.
 
 ## Authorization rules
 
