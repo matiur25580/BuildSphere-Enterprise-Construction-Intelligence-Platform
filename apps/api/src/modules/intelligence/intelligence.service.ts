@@ -11,9 +11,10 @@ import { SafetyEvent } from "../delivery/safety-event.model.js";
 import { Rfi } from "../delivery/rfi.model.js";
 import { Submittal } from "../delivery/submittal.model.js";
 import { ProjectDocument } from "../delivery/project-document.model.js";
+import { rankEvidence, scoreBudgetRisk, scoreQualityRisk, scoreSafetyRisk, scoreScheduleRisk, type EvidenceRecord } from "./intelligence.rules.js";
 
 export const askProjectSchema = z.object({ question: z.string().trim().min(3).max(500) });
-type Evidence = { id: string; sourceType: string; reference: string; title: string; status: string; severity: string; date: string; summary: string };
+type Evidence = EvidenceRecord;
 type Insight = { id: string; domain: string; severity: "critical" | "high" | "medium" | "low" | "info"; score: number; title: string; summary: string; recommendation: string; evidenceIds: string[]; confidence: "high" | "medium" | "low" | "insufficient" };
 const day = (value: Date | string) => new Date(value).toISOString().slice(0, 10);
 const evidence = (sourceType: string, item: any, reference: string, title: string, status: string, severity: string, date: Date | string, summary: string): Evidence => ({ id: `${sourceType}:${String(item._id)}`, sourceType, reference, title, status, severity, date: day(date), summary });
@@ -35,22 +36,22 @@ export async function buildProjectIntelligence(organizationId: string, projectId
   const averageProgress = tasks.length ? tasks.reduce((sum, item) => sum + item.progress, 0) / tasks.length : 0;
   const elapsed = Math.max(0, Math.min(100, ((now.getTime() - new Date(project.startDate).getTime()) / Math.max(1, new Date(project.targetEndDate).getTime() - new Date(project.startDate).getTime())) * 100));
   const scheduleGap = Math.max(0, elapsed - averageProgress);
-  const scheduleScore = tasks.length ? Math.min(100, overdueTasks.length * 18 + blockedTasks.length * 14 + Math.max(0, scheduleGap - 10) * 1.2) : 0;
+  const scheduleScore = scoreScheduleRisk(overdueTasks.length, blockedTasks.length, scheduleGap, tasks.length > 0);
   const matchingCurrency = commercial.filter((record) => record.currency === project.currency);
   const purchaseOrders = matchingCurrency.filter((record) => record.type === "purchase_order" && ["submitted", "approved", "paid"].includes(record.status));
   const committed = purchaseOrders.reduce((sum, record) => sum + record.amount, 0);
   const commitmentRatio = project.budget > 0 ? committed / project.budget : 0;
-  const budgetScore = project.budget > 0 ? (commitmentRatio >= 1 ? 100 : commitmentRatio >= .9 ? 85 : commitmentRatio >= .8 ? 65 : commitmentRatio >= .65 ? 40 : 10) : 0;
+  const budgetScore = scoreBudgetRisk(commitmentRatio, project.budget > 0);
   const overdueInvoices = matchingCurrency.filter((record) => record.type === "invoice" && ["submitted", "approved"].includes(record.status) && record.dueDate && new Date(record.dueDate) < now);
   const openNcrs = ncrs.filter((item) => item.status !== "closed");
   const criticalNcrs = openNcrs.filter((item) => item.severity === "critical");
   const majorNcrs = openNcrs.filter((item) => item.severity === "major");
   const failedInspections = inspections.filter((item) => item.items.some((check) => check.result === "fail") && item.status !== "accepted");
-  const qualityScore = Math.min(100, criticalNcrs.length * 38 + majorNcrs.length * 22 + Math.max(0, openNcrs.length - criticalNcrs.length - majorNcrs.length) * 8 + failedInspections.length * 12);
+  const qualityScore = scoreQualityRisk(criticalNcrs.length, majorNcrs.length, openNcrs.length - criticalNcrs.length - majorNcrs.length, failedInspections.length);
   const openSafety = safety.filter((item) => item.status !== "closed");
   const criticalSafety = openSafety.filter((item) => item.severity === "critical");
   const highSafety = openSafety.filter((item) => item.severity === "high");
-  const safetyScore = Math.min(100, criticalSafety.length * 50 + highSafety.length * 28 + Math.max(0, openSafety.length - criticalSafety.length - highSafety.length) * 7);
+  const safetyScore = scoreSafetyRisk(criticalSafety.length, highSafety.length, openSafety.length - criticalSafety.length - highSafety.length);
   const overdueRfis = rfis.filter((item) => ["submitted"].includes(item.status) && item.dueDate && new Date(item.dueDate) < now);
   const overdueSubmittals = submittals.filter((item) => ["submitted", "under_review", "resubmit", "rejected"].includes(item.status) && item.dueDate && new Date(item.dueDate) < now);
   const openCapas = capas.filter((item) => item.status !== "verified");
@@ -86,10 +87,8 @@ export async function buildProjectIntelligence(organizationId: string, projectId
 }
 
 export function answerFromEvidence(question: string, evidenceItems: Evidence[]) {
-  const stop = new Set(["what","when","where","which","who","whom","does","did","have","has","with","from","that","this","there","their","about","show","tell","give","please","project","current","latest","are","the","and","for","how","can","could","any","all","list","me"]);
-  const tokens = question.toLowerCase().match(/[a-z0-9]{3,}/g)?.filter((token) => !stop.has(token)) ?? [];
-  const scored = evidenceItems.map((item) => { const haystack = `${item.sourceType} ${item.reference} ${item.title} ${item.status} ${item.severity} ${item.summary}`.toLowerCase(); const matches = tokens.filter((token) => haystack.includes(token)); return { item, score: matches.length, matches }; }).filter((row) => row.score > 0).sort((a, b) => b.score - a.score || b.item.date.localeCompare(a.item.date)).slice(0, 8);
+  const { tokens, scored } = rankEvidence(question, evidenceItems);
   if (!tokens.length || !scored.length) return { answer: "I could not find a matching record in the current project evidence. Try asking about overdue tasks, purchase orders, NCRs, safety events, RFIs, submittals, CAPA actions or document approvals.", matchedCount: 0, evidence: [] };
   const lines = scored.map(({ item }) => `${item.reference} — ${item.title} [${item.status}${item.severity !== "none" ? ` / ${item.severity}` : ""}], dated ${item.date}: ${item.summary}`);
-  return { answer: `Found ${scored.length} matching project record(s). These are retrieved source facts, not generated conclusions:\n${lines.join("\n")}`, matchedCount: scored.length, evidence: scored.map(({ item, matches }) => ({ ...item, matchedTerms: matches })) };
+  return { answer: `Found ${scored.length} matching project record(s). These are retrieved source facts, not generated conclusions:\\n${lines.join("\\n")}`, matchedCount: scored.length, evidence: scored.map(({ item, matches }) => ({ ...item, matchedTerms: matches })) };
 }
