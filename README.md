@@ -19,7 +19,8 @@ BuildSphere is a multi-tenant construction technology platform built around a pr
 - **Quality management:** inspections, checklist results, non-conformance reports (NCRs) and corrective/preventive actions (CAPA).
 - **Health, safety and environment:** hazards, near misses, incident records, status workflows and immediate actions.
 - **Project coordination:** RFIs, submittals, review outcomes and document approvals.
-- **Controlled document register:** version history, approval history, private binary uploads, malware scanning, integrity checks and authenticated downloads.
+- **Controlled document register / CDE:** version history, approval history, private PDF/image/IFC uploads, malware scanning, integrity checks and authenticated downloads.
+- **BIM coordination:** controlled IFC model registration, discipline/revision tracking, IFC GlobalId-linked issues, structured camera viewpoints and coordination status history.
 - **Project intelligence:** explainable schedule, commercial, quality, safety and coordination risk signals with linked source evidence.
 - **Collaboration:** project membership, task assignment, notification inbox, activity feed and a transaction-backed event outbox.
 - **Organization governance:** owner/admin membership controls and safeguards against removing the last active owner.
@@ -175,14 +176,24 @@ Dockerfile             Production API container build
 
 **Operational prerequisite:** uploads fail closed unless MongoDB transactions and ClamAV are available. Configure a durable private storage volume. The current adapter is a single-node/private POSIX filesystem implementation, not S3/GCS/Azure object storage. Multi-replica deployments need a shared secure filesystem or a distributed object-storage adapter.
 
-### 4.7 Explainable project intelligence
+### 4.7 BIM model coordination and CDE integration
+- Register malware-scanned IFC document versions as project BIM models, preserving source document, asset, revision, schema declaration and SHA-256 checksum.
+- Track discipline-specific model records and immutable model-version references.
+- Create coordination issues for clashes, design queries, site conditions, constructability and general coordination.
+- Link issues to IFC compressed GlobalIds, level/zone locations, priorities, due dates and active project-member assignees.
+- Store structured camera position/direction/up vectors plus selected and hidden IFC component references as BCF-inspired viewpoints.
+- Enforce tenant/project membership, manager write permissions, explicit issue transitions and actor-attributed history.
+
+**Boundary:** this is an IFC document-backed model register and BCF-inspired issue workflow, not a 3D viewer, IFC geometry parser, automatic clash engine or full BCF 2.1/3.0 ZIP import/export implementation. IFC schema is declared metadata, not inferred by parsing. The current secure upload limit is 25 MiB, suitable for small coordination extracts rather than large federated models. See [BIM coordination documentation](docs/api/bim-coordination.md).
+
+### 4.8 Explainable project intelligence
 - Deterministic risk signals across schedule, budget/commitments, quality, safety and coordination.
 - Evidence register with source records and concise recommendations.
 - Tenant-scoped project intelligence endpoints and workspace.
 
 **AI transparency:** the current engine is rule-based and explainable. It does not call an LLM, train a machine-learning model, calculate a critical path or provide calibrated risk probabilities. It is decision support, not a replacement for project controls judgement.
 
-### 4.8 Collaboration and audit reliability
+### 4.9 Collaboration and audit reliability
 - Persisted recipient-scoped notifications and unread counts.
 - Tenant/project-scoped activity feed.
 - Project membership and assignment-aware event recipients.
@@ -282,6 +293,7 @@ All protected routes use bearer access tokens. See the linked API documents for 
 | Field operations | `/api/v1/projects/:projectId/field` | [Field operations](docs/api/field-operations.md) |
 | Quality, safety and documents | `/api/v1/projects/:projectId/delivery` | [Delivery workflows](docs/api/quality-safety-documents.md) |
 | Secure binary documents | `/api/v1/projects/:projectId/delivery/documents` | [Secure document management](docs/api/secure-document-management.md) |
+| BIM models and coordination issues | `/api/v1/projects/:projectId/bim` | [BIM coordination](docs/api/bim-coordination.md) |
 | Project intelligence | `/api/v1/projects/:projectId/intelligence` | [Project intelligence](docs/api/project-intelligence.md) |
 | Collaboration and activity | `/api/v1/projects/:projectId/collaboration` | [Collaboration](docs/api/collaboration.md) |
 | Project membership and outbox | `/api/v1/projects/:projectId` | [Membership and outbox](docs/api/project-membership-and-outbox.md) |
@@ -295,14 +307,14 @@ GitHub Actions runs on pushes and pull requests to `main`. The pipeline:
 4. Runs API unit tests and MongoDB-backed integration tests.
 5. Builds the production API Docker image.
 
-Tests cover security configuration, intelligence rules, collaboration scoping, notification ownership, HTTP/JWT role and tenant boundaries, transactional outbox rollback/commit, worker lease recovery/fencing, organization governance, and secure document upload/download scanning and authorization.
+Tests cover security configuration, intelligence rules, collaboration scoping, notification ownership, HTTP/JWT role and tenant boundaries, transactional outbox rollback/commit, worker lease recovery/fencing, organization governance, secure document upload/download scanning and authorization, IFC upload validation, BIM model registration, IFC GlobalId issue references, viewpoint validation, and BIM tenant/role boundaries.
 
 CI success demonstrates that the checked-in build and automated test suite passed in that CI environment. It does not certify a production deployment, a real ClamAV signature database, cloud storage durability, compliance, penetration testing or live operational readiness.
 
 ## 9. Roadmap — next enterprise increments
 
 1. **Distributed document storage:** S3-compatible adapter, signed access, resumable multipart uploads, retention and orphan reconciliation.
-2. **BIM and drawing workflows:** IFC/DWG/BCF integration, drawing comparison, model issue coordination and markup.
+2. **BIM and drawing depth:** full BCF 2.1/3.0 import/export, IFC geometry/property extraction, model federation, WebGL viewer, automatic clash detection, DWG/RVT integrations and drawing markup.
 3. **Enterprise identity:** MFA, SSO/OIDC/SAML, SCIM provisioning, delegated administration and organization switching.
 4. **Project controls depth:** Gantt, critical path, schedule baselines, earned value, change control and resource loading.
 5. **Commercial maturity:** decimal-safe money, tax/retention, payment reconciliation, change orders and accounting integrations.
