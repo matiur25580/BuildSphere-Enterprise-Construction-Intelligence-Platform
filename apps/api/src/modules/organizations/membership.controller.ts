@@ -38,7 +38,8 @@ export const addOrganizationMember = asyncHandler(async (request: Request, respo
   const input = addOrganizationMemberSchema.parse(request.body);
   let createdId: mongoose.Types.ObjectId | undefined;
   await mongoose.connection.transaction(async (session) => {
-    await Organization.updateOne({ _id: auth.organizationId }, { $inc: { membershipRevision: 1 } }, { session });
+    const organizationUpdate = await Organization.updateOne({ _id: auth.organizationId }, { $inc: { membershipRevision: 1 } }, { session });
+    if (!organizationUpdate.matchedCount) throw new HttpError(404, "Organization not found");
     const user = await User.findOne({ email: input.email, status: "active" }).select("_id").session(session);
     if (!user) throw new HttpError(404, "An active BuildSphere account with this email was not found");
     const existing = await Membership.findOne({ organizationId: auth.organizationId, userId: user._id }).session(session);
