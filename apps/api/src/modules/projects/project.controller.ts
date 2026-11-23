@@ -90,7 +90,7 @@ export const createWorkItem = asyncHandler(async (request: Request, response: Re
   }
   const item = new WorkItem({ ...input, parentId: input.parentId || null, organizationId: auth.organizationId, projectId });
   if (input.assignedUserId) {
-    await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(projectId), actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(item._id), summary: `Work item assigned: ${item.title}`, recipientIds: [input.assignedUserId] }, (session) => item.save(session ? { session } : {}));
+    await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(projectId), actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(item._id), summary: `Work item assigned: ${item.title}`, recipientIds: [input.assignedUserId] }, async (session) => { const activeAssignee = await ProjectMembership.exists({ organizationId: auth.organizationId, projectId, userId: input.assignedUserId, status: "active" }).session(session ?? null); if (!activeAssignee) throw new HttpError(400, "Assignee must be an active member of this project"); return item.save(session ? { session } : {}); });
   } else {
     await item.save();
   }
@@ -121,7 +121,7 @@ export const updateWorkItem = asyncHandler(async (request: Request, response: Re
   if (input.status === "completed" && input.progress === undefined) existing.progress = 100;
   const nextAssignee = existing.assignedUserId ? String(existing.assignedUserId) : null;
   if (nextAssignee && nextAssignee !== previousAssignee) {
-    await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(existing._id), summary: `Work item assigned: ${existing.title}`, recipientIds: [nextAssignee] }, (session) => existing.save(session ? { session } : {}));
+    await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(existing._id), summary: `Work item assigned: ${existing.title}`, recipientIds: [nextAssignee] }, async (session) => { const activeAssignee = await ProjectMembership.exists({ organizationId: auth.organizationId, projectId: request.params.projectId, userId: nextAssignee, status: "active" }).session(session ?? null); if (!activeAssignee) throw new HttpError(400, "Assignee must be an active member of this project"); return existing.save(session ? { session } : {}); });
   } else {
     await existing.save();
   }
