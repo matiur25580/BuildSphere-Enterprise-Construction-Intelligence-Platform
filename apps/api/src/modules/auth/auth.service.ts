@@ -173,7 +173,20 @@ const rotateSession = async (
 
     const user = await User.findOne({ _id: existing.userId, status: "active" }).session(transaction);
     if (!user) return;
-    const organization = await getSessionContext(user.id, targetOrganizationId ?? existing.organizationId?.toString());
+    let organization: SessionContext;
+    if (targetOrganizationId) {
+      organization = await getSessionContext(user.id, targetOrganizationId);
+    } else if (existing.organizationId) {
+      try {
+        organization = await getSessionContext(user.id, existing.organizationId.toString());
+      } catch {
+        // A tenant may have been suspended since the last refresh. Preserve
+        // account recovery by moving the session to another active membership.
+        organization = await getSessionContext(user.id);
+      }
+    } else {
+      organization = await getSessionContext(user.id);
+    }
     const familyId = existing.familyId || randomUUID();
     const nextRefreshToken = randomBytes(48).toString("base64url");
     const nextTokenHash = hashToken(nextRefreshToken);
