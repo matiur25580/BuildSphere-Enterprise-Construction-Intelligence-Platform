@@ -9,20 +9,23 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    services:
-      mongodb:
-        image: mongo:7
-        command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --eval 'try { rs.status().ok } catch (e) { rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"localhost:27017\"}] }).ok }'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+      - name: Start MongoDB replica set
+        run: |
+          docker run -d --name buildsphere-mongo -p 27017:27017 mongo:7 mongod --replSet rs0 --bind_ip_all
+          for attempt in $(seq 1 30); do
+            if docker exec buildsphere-mongo mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok' >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          docker exec buildsphere-mongo mongosh --quiet --eval 'rs.initiate({_id: "rs0", members: [{_id: 0, host: "localhost:27017"}]})'
+          for attempt in $(seq 1 30); do
+            if docker exec buildsphere-mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' | grep -q true; then exit 0; fi
+            sleep 2
+          done
+          echo "MongoDB replica set did not become writable primary" >&2
+          exit 1
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
