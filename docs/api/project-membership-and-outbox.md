@@ -27,4 +27,4 @@ This outbox is durable after its enqueue write succeeds and its delivery steps a
 
 Socket.IO was not introduced. The existing HTTP server has no established socket authentication/subscription lifecycle; a socket layer would require authenticated handshake token verification, per-project membership authorization on room join, and revocation handling. Persisted delivery remains the safe default; the web inbox refreshes via HTTP.
 
-MongoDB-backed integration tests are not enabled in CI yet. The automated tests validate query scope builders, allowlists, and retry timing; they do not prove cross-tenant behavior against a live database.
+CI runs MongoDB-backed tests for tenant/project/recipient query isolation and notification ownership. These exercise database filters directly; full HTTP/JWT authorization integration tests and end-to-end workflow tests remain outstanding.
