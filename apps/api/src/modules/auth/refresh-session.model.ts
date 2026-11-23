@@ -6,7 +6,7 @@ const refreshSessionSchema = new Schema(
     organizationId: { type: Schema.Types.ObjectId, ref: "Organization", index: true },
     familyId: { type: String, index: true },
     tokenHash: { type: String, required: true, unique: true },
-    expiresAt: { type: Date, required: true, index: true },
+    expiresAt: { type: Date, required: true },
     revokedAt: { type: Date, default: null },
     replacedByTokenHash: { type: String, default: null },
     userAgent: { type: String, maxlength: 500 },
