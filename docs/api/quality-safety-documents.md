@@ -36,7 +36,8 @@ Mutation routes require an owner, admin, or project_manager role. Read routes re
 - A new version is blocked while approval is pending or approved. Adding a version increments the version and returns the document to draft. Approval is permitted only after submission.
 
 ## Security and operational boundaries
-- All document URLs must use HTTPS, but this milestone stores references; it does not upload, scan, virus-check, authorize or serve the underlying binary. Production should integrate short-lived signed object-storage URLs, content-type/size checks, malware scanning, and access-control enforcement.
-- Approval history is append-only through these endpoints, but is not a tamper-evident audit ledger. No separate event store, notifications, delegation, SLA escalation, e-signatures, offline conflict handling, or granular discipline-specific permissions are implemented.
+- New controlled binary uploads and authenticated downloads are documented in the [Secure Document Management API](secure-document-management.md). Existing HTTPS references remain supported for migration but are external links and do not receive the private-storage guarantees.
+- Private binary uploads require a transaction-capable MongoDB topology, a durable private volume, and an available ClamAV scanner. Files are signature-checked, malware-scanned, checksummed and access-controlled; downloads verify stored size and SHA-256 before streaming.
+- Document upload/download access events are immutable through application APIs, but are not a cryptographically tamper-evident ledger against privileged database or volume access. No separate event store, notifications, delegation, SLA escalation, e-signatures, offline conflict handling, or granular discipline-specific permissions are implemented.
 - Inspection checklist templates, photo attachments, drawing markup, formal permit-to-work, regulatory incident reporting, and document retention policies remain future work.
 - Build currently has CI build verification; the repository does not yet define an API integration-test runner or test database. Add isolated tenant-boundary and transition tests before production rollout.
