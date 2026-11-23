@@ -4,7 +4,7 @@
 
 BuildSphere is an AI-assisted construction operations platform designed to connect project planning, commercial control, field execution, quality, safety, and delivery intelligence in one workspace.
 
-> Project status: active development. The foundation, authentication, and first project portfolio milestone are implemented; broader project workflows are being delivered incrementally.
+> Project status: active development. The foundation, authentication, project portfolio, commercial management, and first field operations workflows are implemented; broader capabilities are being delivered incrementally.
 
 ## Product direction
 
@@ -114,6 +114,12 @@ Not yet implemented: full Gantt rendering, critical-path calculation, dependency
 Implemented: project cost codes and allocated budgets; purchase-order, invoice, and payment-claim records; cost-code linkage; record submission, approval, rejection, and payment status transitions; project commercial summaries; and a responsive commercial workspace.
 
 This is an operational register, not a statutory accounting ledger. Decimal precision, immutable journals, tax, retention, partial-payment reconciliation, and audit events remain required before production financial use. See [Commercial Management API](docs/api/commercial-management.md).
+
+## Field operations milestone scope
+
+Implemented: project-scoped contractor registry, contractor contact/status updates, day/night daily site reports, workforce-by-trade and contractor logging, equipment quantity and hours, weather, progress, safety observations, delays/issues, HTTPS photo evidence references, optional site/photo coordinates, and field summary metrics. See [Field Operations API](docs/api/field-operations.md).
+
+Not yet implemented: direct photo uploads/object storage, offline-first sync, payroll, equipment telemetry, formal safety incident workflows, and auditable report amendments.
 
 ## Authentication milestone scope
 
