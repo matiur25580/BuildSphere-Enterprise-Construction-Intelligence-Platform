@@ -17,6 +17,8 @@ COPY apps/web/package*.json ./apps/web/
 COPY packages/shared/package*.json ./packages/shared/
 RUN npm install --omit=dev
 COPY --from=build /app/apps/api/dist ./apps/api/dist
+ENV DOCUMENT_STORAGE_DIR=/var/lib/buildsphere/documents
+RUN mkdir -p /var/lib/buildsphere/documents && chown -R node:node /var/lib/buildsphere
 USER node
 EXPOSE 5000
 CMD ["node", "apps/api/dist/server.js"]
