@@ -235,6 +235,8 @@ Never expose the ClamAV daemon publicly. Keep signatures updated, encrypt and ba
 git clone https://github.com/matiur25580/BuildSphere-Enterprise-Construction-Intelligence-Platform.git
 cd BuildSphere-Enterprise-Construction-Intelligence-Platform
 cp .env.example .env
+# Start a local MongoDB replica set and ClamAV service
+docker compose -f infrastructure/docker/compose.yaml up -d
 npm install
 ```
 
@@ -244,7 +246,7 @@ Set at least:
 - `CLIENT_URL` (exact frontend origin)
 - `OUTBOX_TRANSACTION_MODE`
 
-For transaction-backed local development, run MongoDB as a replica set and initialise it before starting the API. A standalone local MongoDB is suitable only for explicitly non-atomic development workflows; secure document uploads will return `503` until transaction support is enabled.
+The included Compose file starts a single-node MongoDB replica set and a private ClamAV service for local development. Wait for MongoDB to become healthy and allow ClamAV to finish its initial signature setup before uploading files. The sample `.env` uses `replicaSet=rs0` and `OUTBOX_TRANSACTION_MODE=required`; secure document uploads return `503` until both transaction support and malware scanning are available.
 
 For document upload testing, also configure `CLAMD_HOST`, `CLAMD_PORT`, and a writable `DOCUMENT_STORAGE_DIR`. The API deliberately rejects uploads when malware scanning is not configured.
 
