@@ -1,5 +1,6 @@
 import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -61,7 +62,6 @@ test("storage configuration fails closed in production and local storage passes 
   assert.doesNotThrow(() => assertDocumentStorageConfigured());
 });
 
-
 test("S3 readiness timeout defaults safely and validates configured bounds", () => {
   const previousTimeout = process.env.DOCUMENT_STORAGE_HEALTH_TIMEOUT_MS;
   try {
@@ -78,5 +78,64 @@ test("S3 readiness timeout defaults safely and validates configured bounds", () 
   } finally {
     if (previousTimeout === undefined) delete process.env.DOCUMENT_STORAGE_HEALTH_TIMEOUT_MS;
     else process.env.DOCUMENT_STORAGE_HEALTH_TIMEOUT_MS = previousTimeout;
+  }
+});
+
+test("S3 readiness aborts a stalled HeadBucket request and reports a safe 503", async () => {
+  const previousS3 = {
+    provider: process.env.DOCUMENT_STORAGE_PROVIDER,
+    endpoint: process.env.DOCUMENT_S3_ENDPOINT,
+    region: process.env.DOCUMENT_S3_REGION,
+    bucket: process.env.DOCUMENT_S3_BUCKET,
+    accessKey: process.env.DOCUMENT_S3_ACCESS_KEY_ID,
+    secretKey: process.env.DOCUMENT_S3_SECRET_ACCESS_KEY,
+    forcePathStyle: process.env.DOCUMENT_S3_FORCE_PATH_STYLE,
+    timeout: process.env.DOCUMENT_STORAGE_HEALTH_TIMEOUT_MS,
+  };
+  let responseClosed = false;
+  let resolveResponseClosed!: () => void;
+  const responseClosedPromise = new Promise<void>((resolve) => { resolveResponseClosed = resolve; });
+  const server = createServer((_request, response) => {
+    response.on("close", () => {
+      responseClosed = true;
+      resolveResponseClosed();
+    });
+  });
+
+  try {
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+
+    process.env.DOCUMENT_STORAGE_PROVIDER = "s3";
+    process.env.DOCUMENT_S3_ENDPOINT = `http://127.0.0.1:${address.port}`;
+    process.env.DOCUMENT_S3_REGION = "us-east-1";
+    process.env.DOCUMENT_S3_BUCKET = "buildsphere-test";
+    process.env.DOCUMENT_S3_ACCESS_KEY_ID = "test-access-key";
+    process.env.DOCUMENT_S3_SECRET_ACCESS_KEY = "test-secret-key";
+    process.env.DOCUMENT_S3_FORCE_PATH_STYLE = "true";
+    process.env.DOCUMENT_STORAGE_HEALTH_TIMEOUT_MS = "500";
+
+    await assert.rejects(
+      documentStorageHealthCheck(),
+      (error: unknown) => error instanceof Error && error.message === "S3 document storage is unavailable or misconfigured",
+    );
+    await Promise.race([responseClosedPromise, new Promise<void>((resolve) => setTimeout(resolve, 3_000))]);
+    assert.equal(responseClosed, true, "the HTTP request should be aborted when the readiness timeout expires");
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    const restore = (key: string, value: string | undefined) => {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    };
+    restore("DOCUMENT_STORAGE_PROVIDER", previousS3.provider);
+    restore("DOCUMENT_S3_ENDPOINT", previousS3.endpoint);
+    restore("DOCUMENT_S3_REGION", previousS3.region);
+    restore("DOCUMENT_S3_BUCKET", previousS3.bucket);
+    restore("DOCUMENT_S3_ACCESS_KEY_ID", previousS3.accessKey);
+    restore("DOCUMENT_S3_SECRET_ACCESS_KEY", previousS3.secretKey);
+    restore("DOCUMENT_S3_FORCE_PATH_STYLE", previousS3.forcePathStyle);
+    restore("DOCUMENT_STORAGE_HEALTH_TIMEOUT_MS", previousS3.timeout);
   }
 });
