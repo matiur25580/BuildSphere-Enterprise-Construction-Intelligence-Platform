@@ -19,6 +19,7 @@ import { DocumentAsset } from "./document-asset.model.js";
 import { DocumentAuditEvent } from "./document-audit.model.js";
 
 const mongoUri = process.env.MONGODB_URI;
+const isolatedMongoUri = mongoUri?.replace(/\\/[^/?]+(?=\\?)/, "/buildsphere_documents_ci");
 let httpServer: Server | undefined;
 let clamdServer: TcpServer | undefined;
 let baseUrl = "";
@@ -26,7 +27,7 @@ let storageDirectory = "";
 if (!mongoUri) throw new Error("MONGODB_URI is required for document integration tests");
 
 before(async () => {
-  await mongoose.connect(mongoUri);
+  await mongoose.connect(isolatedMongoUri ?? mongoUri!);
   assert.equal(await configureCollaborationTransactions(), true, "Document integration tests require MongoDB transactions");
   await Promise.all([User.syncIndexes(), Organization.syncIndexes(), Membership.syncIndexes(), Project.syncIndexes(), ProjectMembership.syncIndexes(), ProjectDocument.syncIndexes(), DocumentAsset.syncIndexes(), DocumentAuditEvent.syncIndexes()]);
   storageDirectory = await mkdtemp(join(tmpdir(), "buildsphere-documents-"));
