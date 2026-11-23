@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import mongoose from "mongoose";
 import { Activity, Notification } from "./collaboration.models.js";
 import { ProjectMembership } from "../projects/project-membership.model.js";
+import { CollaborationOutbox } from "./outbox.model.js";
 import { notificationOwnerScope, projectActivityScope, projectMemberScope } from "./collaboration.service.js";
 
 const mongoUri = process.env.MONGODB_URI;
@@ -10,7 +11,7 @@ if (!mongoUri) throw new Error("MONGODB_URI is required for collaboration integr
 
 before(async () => {
   await mongoose.connect(mongoUri);
-  await Promise.all([Activity.syncIndexes(), Notification.syncIndexes(), ProjectMembership.syncIndexes()]);
+  await Promise.all([Activity.syncIndexes(), Notification.syncIndexes(), ProjectMembership.syncIndexes(), CollaborationOutbox.syncIndexes()]);
 });
 
 after(async () => {
@@ -60,4 +61,25 @@ test("MongoDB tenant, project and recipient filters isolate collaboration record
   const projectMembers = await ProjectMembership.find(projectMemberScope(String(tenantA), String(projectA))).lean();
   assert.equal(projectMembers.length, 1);
   assert.equal(String(projectMembers[0].userId), String(userA));
+});
+
+test("MongoDB rejects stale outbox worker completion after lease takeover", async () => {
+  const organizationId = new mongoose.Types.ObjectId();
+  const projectId = new mongoose.Types.ObjectId();
+  const actorId = new mongoose.Types.ObjectId();
+  const targetId = new mongoose.Types.ObjectId();
+  const event = await CollaborationOutbox.create({
+    organizationId, projectId, actorId, eventType: "safety.event_status_changed",
+    targetType: "safety_event", targetId, summary: "Safety event status changed",
+    status: "processing", attempts: 2, leaseToken: "current-worker-token",
+    leaseExpiresAt: new Date(Date.now() + 30_000),
+  });
+  const stale = await CollaborationOutbox.updateOne(
+    { _id: event._id, status: "processing", leaseToken: "expired-worker-token" },
+    { $set: { status: "delivered", deliveredAt: new Date() } },
+  );
+  assert.equal(stale.modifiedCount, 0);
+  const current = await CollaborationOutbox.findById(event._id).lean();
+  assert.equal(current?.status, "processing");
+  assert.equal(current?.leaseToken, "current-worker-token");
 });
