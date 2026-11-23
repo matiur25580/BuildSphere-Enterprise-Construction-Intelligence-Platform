@@ -1,7 +1,12 @@
+import { ZodError } from "zod";
 import type { ErrorRequestHandler } from "express";
 import { HttpError } from "../common/http-error.js";
 
 export const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
+  if (error instanceof ZodError) {
+    response.status(400).json({ success: false, message: "Request validation failed", errors: error.issues.map((issue) => ({ path: issue.path.join("."), code: issue.code, message: issue.message })) });
+    return;
+  }
   if (error instanceof HttpError) {
     response.status(error.statusCode).json({ success: false, message: error.message });
     return;
