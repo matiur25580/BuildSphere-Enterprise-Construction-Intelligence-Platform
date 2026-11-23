@@ -52,6 +52,9 @@ before(async () => {
         if (data.length < 4 + length) return;
         scanned = Buffer.concat([scanned, data.subarray(4, 4 + length)]);
         data = data.subarray(4 + length);
+        // The fixture payloads fit in one INSTREAM frame; answer once the complete payload arrives.
+        socket.end(Buffer.from(scanned.includes(Buffer.from("EICAR")) ? "stream: Eicar-Test-Signature FOUND\0" : "stream: OK\0"));
+        return;
       }
     });
   });
