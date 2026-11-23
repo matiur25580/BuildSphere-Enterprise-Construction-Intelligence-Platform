@@ -243,6 +243,11 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   assert.equal(String(assignmentEvent.actorId), String(userA._id));
   assert.deepEqual(assignmentEvent.recipientIds.map(String), [String(assignee._id)]);
 
+  const crossTenantAssignment = await call(`/api/v1/projects/${project.id}/work-items`, ownerToken, "POST", {
+    code: "TASK-CROSS-TENANT", title: "Invalid cross-tenant assignment", startDate: "2026-02-01", endDate: "2026-02-02", assignedUserId: String(userB._id),
+  });
+  assert.equal(crossTenantAssignment.status, 400);
+
   const safety = await call(`/api/v1/projects/${project.id}/delivery/safety-events`, ownerToken, "POST", {
     reference: "SAFE-HTTP", type: "hazard", title: "Unsafe access", description: "An unsafe access route was identified.", occurredAt: "2026-11-20T10:00:00.000Z",
   });
