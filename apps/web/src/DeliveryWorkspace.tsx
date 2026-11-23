@@ -1,5 +1,5 @@
 import { BimWorkspace } from "./BimWorkspace.js";
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api/v1";
 type Project = { _id: string; code: string; name: string };
@@ -23,9 +23,9 @@ export function DeliveryWorkspace({ project, token, onClose }: { project: Projec
   const [rfi, setRfi] = useState({ reference: "", subject: "", question: "", discipline: "", dueDate: "" });
   const [submittal, setSubmittal] = useState({ reference: "", title: "", description: "", specificationSection: "", revision: "A", dueDate: "" });
   const [document, setDocument] = useState({ documentNo: "", title: "", category: "Drawing", fileUrl: "", fileName: "", notes: "" }); const [documentFile, setDocumentFile] = useState<File | null>(null); const [uploadingDocument, setUploadingDocument] = useState(false);
-  const refresh = async () => { setLoading(true); try { const [s,i,n,se,r,su,d] = await Promise.all([request<Summary>(base+"/summary",token),request<Inspection[]>(base+"/inspections",token),request<Ncr[]>(base+"/ncrs",token),request<SafetyEvent[]>(base+"/safety-events",token),request<Rfi[]>(base+"/rfis",token),request<Submittal[]>(base+"/submittals",token),request<Document[]>(base+"/documents",token)]); setSummary(s);setInspections(i);setNcrs(n);setSafety(se);setRfis(r);setSubmittals(su);setDocuments(d); if (!selectedNcr && n[0]) setSelectedNcr(n[0]._id); setError(""); } catch(e) { setError(e instanceof Error?e.message:"Unable to load delivery workspace"); } finally { setLoading(false); } };
-  useEffect(()=>{void refresh();},[project._id,token]);
-  useEffect(()=>{ if(selectedNcr) void request<Capa[]>(base+"/ncrs/"+selectedNcr+"/capa",token).then(setCapas).catch(e=>setError(e instanceof Error?e.message:"Unable to load CAPA")); else setCapas([]); },[selectedNcr,project._id,token]);
+  const refresh = useCallback(async () => { setLoading(true); try { const [s,i,n,se,r,su,d] = await Promise.all([request<Summary>(base+"/summary",token),request<Inspection[]>(base+"/inspections",token),request<Ncr[]>(base+"/ncrs",token),request<SafetyEvent[]>(base+"/safety-events",token),request<Rfi[]>(base+"/rfis",token),request<Submittal[]>(base+"/submittals",token),request<Document[]>(base+"/documents",token)]); setSummary(s);setInspections(i);setNcrs(n);setSafety(se);setRfis(r);setSubmittals(su);setDocuments(d); setSelectedNcr((current) => current || n[0]?._id || ""); setError(""); } catch(e) { setError(e instanceof Error?e.message:"Unable to load delivery workspace"); } finally { setLoading(false); } }, [base, token]);
+  useEffect(()=>{void refresh();},[refresh]);
+  useEffect(()=>{ if(selectedNcr) void request<Capa[]>(base+"/ncrs/"+selectedNcr+"/capa",token).then(setCapas).catch(e=>setError(e instanceof Error?e.message:"Unable to load CAPA")); else setCapas([]); },[selectedNcr,base,token]);
   const send = async (event: FormEvent<HTMLFormElement>, path: string, body: unknown, reset: () => void) => { event.preventDefault(); try { await request(path,token,{method:"POST",body:JSON.stringify(body)}); reset(); await refresh(); } catch(e) { setError(e instanceof Error?e.message:"Unable to save record"); } };
   const patch = async (path: string, body: unknown) => { try { await request(path,token,{method:"PATCH",body:JSON.stringify(body)}); await refresh(); if(selectedNcr) setCapas(await request<Capa[]>(base+"/ncrs/"+selectedNcr+"/capa",token)); } catch(e) { setError(e instanceof Error?e.message:"Unable to update workflow"); } };
   const action = (label:string,path:string,body:unknown) => <button type="button" className="record-action" onClick={()=>void patch(path,body)}>{label}</button>;

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api/v1";
 type Project = { _id: string; code: string; name: string; budget: number; currency: string };
@@ -25,7 +25,7 @@ export function CommercialWorkspace({ project, token, onClose }: { project: Proj
   const [record, setRecord] = useState({ type: "purchase_order", reference: "", counterparty: "", amount: "", currency: project.currency || "USD", issueDate: new Date().toISOString().slice(0,10), dueDate: "", costCodeId: "" });
   const [code, setCode] = useState({ code: "", name: "", budget: "0", currency: project.currency || "USD" });
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const base = "/projects/" + project._id + "/commercial";
@@ -37,8 +37,8 @@ export function CommercialWorkspace({ project, token, onClose }: { project: Proj
       setSummary(s); setCodes(c); setRecords(r); setError("");
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load commercial data"); }
     finally { setLoading(false); }
-  };
-  useEffect(() => { void refresh(); }, [project._id, token]);
+  }, [project._id, token]);
+  useEffect(() => { void refresh(); }, [refresh]);
 
   const submitRecord = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
