@@ -3,14 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "description": "Enterprise Construction Intelligence and Project Delivery Platform",
-  "workspaces": ["apps/api", "apps/web", "packages/shared"],
+  "workspaces": [
+    "apps/api",
+    "apps/web",
+    "packages/shared"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "npm run dev --workspace=@buildsphere/api",
     "dev:web": "npm run dev --workspace=@buildsphere/web",
     "build": "npm run build --workspace=@buildsphere/api && npm run build --workspace=@buildsphere/web",
     "test": "npm run test --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "test:e2e": "playwright test --config playwright.config.js"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
