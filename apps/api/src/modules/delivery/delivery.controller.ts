@@ -227,7 +227,7 @@ export const completeDocumentUpload = asyncHandler(async (request: Request, resp
   const normalized = normalizeDocumentFile(combined, encodeURIComponent(session.fileName), session.contentType);
   await scanDocumentWithClamAv(normalized.buffer);
   const storageKey = randomUUID();
-  const lockedSession = await DocumentUploadSession.findOneAndUpdate({ _id: session._id, ...scope, documentId, createdBy: auth.userId, status: "uploading", expiresAt: { $gt: new Date() } }, { $set: { status: "completing" } }, { new: true });
+  const lockedSession = await DocumentUploadSession.findOneAndUpdate({ _id: session._id, ...scope, documentId, createdBy: auth.userId, status: "uploading", expiresAt: { $gt: new Date() } }, { $set: { status: "completing", finalStorageKey: storageKey } }, { new: true });
   if (!lockedSession) throw new HttpError(409, "Upload session is already being completed or has changed");
   try {
     await putDocumentObject(storageKey, normalized.buffer, normalized.contentType);
@@ -256,8 +256,12 @@ export const completeDocumentUpload = asyncHandler(async (request: Request, resp
     await DocumentUploadSession.deleteOne({ _id: session._id, ...scope, documentId, createdBy: auth.userId });
     response.status(201).json({ success: true, data: result, asset: { id: String(assetId), fileName: normalized.fileName, contentType: normalized.contentType, byteSize: normalized.buffer.length, sha256, scanStatus: "clean" } });
   } catch (error) {
-    await deleteDocumentObject(storageKey).catch(() => undefined);
-    await DocumentUploadSession.updateOne({ _id: session._id, ...scope, documentId, createdBy: auth.userId, status: "completing" }, { $set: { status: "uploading" } }).catch(() => undefined);
+    try {
+      await deleteDocumentObject(storageKey);
+      await DocumentUploadSession.updateOne({ _id: session._id, ...scope, documentId, createdBy: auth.userId, status: "completing" }, { $set: { status: "uploading" }, $unset: { finalStorageKey: 1 } }).catch(() => undefined);
+    } catch {
+      // Keep the completing state and object key so the lifecycle worker can retry cleanup safely.
+    }
     throw error;
   }
 });
