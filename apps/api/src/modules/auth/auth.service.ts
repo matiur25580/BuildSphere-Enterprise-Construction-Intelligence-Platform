@@ -49,18 +49,22 @@ const createRefreshSession = async (userId: string, organizationId: string, meta
   return refreshToken;
 };
 
-const getSessionContext = async (userId: string, organizationId?: string): Promise<SessionContext> => {
-  const memberships = await Membership.find({
+const getSessionContext = async (userId: string, organizationId?: string, session?: ClientSession): Promise<SessionContext> => {
+  let membershipQuery = Membership.find({
     userId,
     status: "active",
     ...(organizationId ? { organizationId } : {}),
-  }).sort({ createdAt: 1 }).lean();
+  }).sort({ createdAt: 1 });
+  if (session) membershipQuery = membershipQuery.session(session);
+  const memberships = await membershipQuery.lean();
   if (!memberships.length) throw new HttpError(403, "No active organization membership was found");
 
-  const organizations = await Organization.find({
+  let organizationQuery = Organization.find({
     _id: { $in: memberships.map((membership) => membership.organizationId) },
     status: "active",
-  }).select("_id name slug").lean();
+  }).select("_id name slug");
+  if (session) organizationQuery = organizationQuery.session(session);
+  const organizations = await organizationQuery.lean();
   const organizationById = new Map(organizations.map((organization) => [String(organization._id), organization]));
   const membership = memberships.find((item) => organizationById.has(String(item.organizationId)));
   if (!membership) throw new HttpError(403, "No active organization membership was found");
@@ -175,10 +179,10 @@ const rotateSession = async (
     if (!user) return;
     let organization: SessionContext;
     if (targetOrganizationId) {
-      organization = await getSessionContext(user.id, targetOrganizationId);
+      organization = await getSessionContext(user.id, targetOrganizationId, transaction);
     } else if (existing.organizationId) {
       try {
-        organization = await getSessionContext(user.id, existing.organizationId.toString());
+        organization = await getSessionContext(user.id, existing.organizationId.toString(), transaction);
       } catch {
         // A tenant may have been suspended since the last refresh. Preserve
         // account recovery by moving the session to another active membership.
