@@ -1,6 +1,8 @@
 name: Bootstrap npm lockfile
 
 on:
+  push:
+    branches: ["chore/bootstrap-authentic-npm-lockfile"]
   pull_request:
     branches: [main]
     paths:
