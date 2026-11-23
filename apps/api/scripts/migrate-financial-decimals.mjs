@@ -18,7 +18,7 @@ const migrate = async () => {
       const fieldPath = "$" + field;
       const result = await collection.updateMany(
         { [field]: { $exists: true } },
-        [{ $set: { [field]: { $toDecimal: { $toString: { $ifNull: [`${field}`, "0"] } } } } }],
+        [{ $set: { [field]: { $toDecimal: { $toString: { $ifNull: [fieldPath, "0"] } } } } }],
       );
       const remaining = await collection.countDocuments({
         [field]: { $exists: true },
