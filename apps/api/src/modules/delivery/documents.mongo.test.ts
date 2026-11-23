@@ -113,6 +113,8 @@ test("private document upload and download enforce scan, tenant and project-memb
   const tenantBToken = token(String(tenantB._id), String(orgB._id), "owner");
   const path = `/api/v1/projects/${project._id}/delivery/documents/${document._id}/files`;
   const pdf = Buffer.from("%PDF-1.7\\nBuildSphere controlled drawing\\n%%EOF");
+  const approvalUrl = `${baseUrl}/api/v1/projects/${project._id}/delivery/documents/${document._id}/approval`;
+  assert.equal((await fetch(approvalUrl, { method: "PATCH", headers: { authorization: `Bearer ${ownerToken}`, "content-type": "application/json" }, body: JSON.stringify({ action: "submitted" }) })).status, 409);
   const upload = (bearer: string, body = pdf, contentType = "application/pdf", fileName = "foundation-plan.pdf") =>
     fetch(baseUrl + path, { method: "POST", headers: { authorization: `Bearer ${bearer}`, "content-type": contentType, "x-file-name": encodeURIComponent(fileName) }, body });
   assert.equal((await upload(ownerToken)).status, 201);
