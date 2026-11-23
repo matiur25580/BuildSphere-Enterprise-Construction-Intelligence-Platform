@@ -17,7 +17,7 @@ const migrate = async () => {
       const collection = mongoose.connection.collection(name);
       const result = await collection.updateMany(
         { [field]: { $exists: true } },
-        [{ $set: { [field]: { $toDecimal: { $toString: `$${field}` } } } }],
+        [{ $set: { [field]: { $toDecimal: { $toString: { $ifNull: [`${field}`, "0"] } } } } }],
       );
       const remaining = await collection.countDocuments({
         [field]: { $exists: true },
