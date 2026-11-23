@@ -29,7 +29,7 @@ export const normalizeDocumentFile = (body: unknown, rawName: string | undefined
     (expectedType === "image/png" && body.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ||
     (expectedType === "image/jpeg" && body[0] === 0xff && body[1] === 0xd8 && body[2] === 0xff) ||
     (expectedType === "image/webp" && body.subarray(0, 4).toString("ascii") === "RIFF" && body.subarray(8, 12).toString("ascii") === "WEBP") ||
-    (expectedType === "application/ifc" && /^\\s*ISO-10303-21\\s*;/i.test(body.subarray(0, 256).toString("utf8")));
+    (expectedType === "application/ifc" && body.subarray(0, 256).toString("utf8").trimStart().startsWith("ISO-10303-21;"));
   if (!validSignature) throw new HttpError(415, "File content does not match its declared document type");
   return { buffer: body, fileName, contentType: expectedType };
 };
