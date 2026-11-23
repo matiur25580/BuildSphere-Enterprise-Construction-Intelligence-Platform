@@ -228,3 +228,35 @@ form input::placeholder { color: #64748b; }
 .delivery-form details summary { cursor:pointer; color:#b8d9e9; font-weight:650; }
 .delivery-form details label { margin-top:10px; }
 .delivery-form input[type="file"] { width:100%; padding:9px; border:1px dashed #45627a; border-radius:7px; background:#101f30; color:#a9bdd0; font-size:10px; }
+
+
+/* Phase 15 BIM and CDE coordination workspace */
+.bim-workspace { margin-top:18px; }
+.bim-intro { display:flex; justify-content:space-between; align-items:flex-start; gap:22px; padding:18px; border:1px solid #2b4054; border-radius:10px; background:linear-gradient(120deg,#14283a,#132338); }
+.bim-intro h3 { margin:7px 0; color:#e7f1fa; font:750 19px Manrope,sans-serif; }
+.bim-intro p:not(.eyebrow) { max-width:680px; margin:0; color:#9fb2c5; font-size:11px; line-height:1.7; }
+.bim-counts { display:grid; grid-template-columns:auto auto; align-items:center; gap:4px 10px; min-width:160px; padding:10px 13px; border:1px solid #314a60; border-radius:8px; background:#102033; }
+.bim-counts strong { color:#66d4b6; font:800 19px Manrope,sans-serif; }
+.bim-counts span { color:#91a6bb; font-size:9px; }
+.bim-forms { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:17px; }
+.bim-forms .delivery-form { min-width:0; }
+.bim-forms .delivery-form select { width:100%; padding:10px; border:1px solid #344a60; border-radius:6px; background:#101d2c; color:#dbe6ef; font-size:11px; }
+.bim-viewpoint-input { min-height:100px; font:10px ui-monospace,monospace!important; }
+.bim-model-list,.bim-issue-list { display:flex; flex-direction:column; gap:8px; }
+.bim-model-list>article,.bim-issue-list>article { padding:14px 15px; border:1px solid #2a3d51; border-radius:8px; background:#111f30; }
+.bim-model-list>article { display:flex; justify-content:space-between; align-items:center; gap:14px; }
+.bim-model-list b,.bim-issue-list b { display:block; color:#e0eaf4; font-size:11px; }
+.bim-model-list span,.bim-model-list small { display:block; margin-top:5px; color:#8fa4b9; font-size:9px; }
+.bim-revision { flex-shrink:0; padding:6px 9px; border:1px solid #315c55; border-radius:20px; color:#8ed9c5!important; background:#17372f; }
+.bim-issue-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.bim-issue-list p { margin:8px 0; color:#aab9c9; font-size:10px; line-height:1.65; }
+.bim-priority { padding:5px 8px; border-radius:20px; background:#24374b; color:#b8c9da; font-size:9px; text-transform:uppercase; }
+.bim-priority.high,.bim-priority.critical { border:1px solid #75484c; background:#3a242b; color:#ffb5b5; }
+.bim-priority.normal { border:1px solid #655637; background:#342e20; color:#e7d19a; }
+.bim-issue-meta { display:flex; flex-wrap:wrap; gap:8px 16px; color:#849ab0; font-size:9px; }
+.bim-issue-meta code { color:#a8c6df; font-size:9px; }
+.bim-issue-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:10px; padding-top:9px; border-top:1px solid #273b50; }
+.bim-issue-actions small { color:#8096ad; font-size:9px; }
+.bim-issue-actions .record-action { margin-left:auto; }
+@media(max-width:850px) { .bim-forms { grid-template-columns:1fr; }.bim-intro { flex-direction:column; }.bim-counts { width:100%; max-width:260px; } }
+@media(max-width:560px) { .bim-model-list>article { align-items:flex-start; flex-direction:column; }.bim-issue-heading { align-items:flex-start; flex-direction:column; }.bim-issue-actions .record-action { margin-left:0; } }
