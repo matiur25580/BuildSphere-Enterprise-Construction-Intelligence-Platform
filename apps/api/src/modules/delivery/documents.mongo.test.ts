@@ -1,4 +1,5 @@
 import test, { before, after } from "node:test";
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
@@ -17,6 +18,7 @@ import { ProjectMembership } from "../projects/project-membership.model.js";
 import { ProjectDocument } from "./project-document.model.js";
 import { DocumentAsset } from "./document-asset.model.js";
 import { DocumentAuditEvent } from "./document-audit.model.js";
+import { DocumentUploadSession } from "./document-upload-session.model.js";
 import { BimModel } from "../bim/bim-model.model.js";
 import { BimIssue } from "../bim/bim-issue.model.js";
 
@@ -31,7 +33,7 @@ if (!mongoUri) throw new Error("MONGODB_URI is required for document integration
 before(async () => {
   await mongoose.connect(isolatedMongoUri ?? mongoUri!);
   assert.equal(await configureCollaborationTransactions(), true, "Document integration tests require MongoDB transactions");
-  await Promise.all([User.syncIndexes(), Organization.syncIndexes(), Membership.syncIndexes(), Project.syncIndexes(), ProjectMembership.syncIndexes(), ProjectDocument.syncIndexes(), DocumentAsset.syncIndexes(), DocumentAuditEvent.syncIndexes(), BimModel.syncIndexes(), BimIssue.syncIndexes()]);
+  await Promise.all([User.syncIndexes(), Organization.syncIndexes(), Membership.syncIndexes(), Project.syncIndexes(), ProjectMembership.syncIndexes(), ProjectDocument.syncIndexes(), DocumentAsset.syncIndexes(), DocumentAuditEvent.syncIndexes(), DocumentUploadSession.syncIndexes(), BimModel.syncIndexes(), BimIssue.syncIndexes()]);
   storageDirectory = await mkdtemp(join(tmpdir(), "buildsphere-documents-"));
   process.env.DOCUMENT_STORAGE_DIR = storageDirectory;
   clamdServer = createServer((socket) => {
@@ -176,5 +178,29 @@ test("private document upload and download enforce scan, tenant and project-memb
   assert.equal((await fetch(statusUrl, { method: "PATCH", headers: { authorization: `Bearer ${viewerToken}`, "content-type": "application/json" }, body: JSON.stringify({ status: "in_progress" }) })).status, 403);
   assert.equal((await fetch(statusUrl, { method: "PATCH", headers: { authorization: `Bearer ${ownerToken}`, "content-type": "application/json" }, body: JSON.stringify({ status: "in_progress", comment: "Assigned for coordination" }) })).status, 200);
   assert.equal((await fetch(statusUrl, { method: "PATCH", headers: { authorization: `Bearer ${ownerToken}`, "content-type": "application/json" }, body: JSON.stringify({ status: "closed" }) })).status, 409);
+
+  const resumableBytes = Buffer.from("%PDF-1.7 resumable upload fixture");
+  const resumableSha = createHash("sha256").update(resumableBytes).digest("hex");
+  const uploadSessionResponse = await fetch(baseUrl + `/api/v1/projects/${project._id}/delivery/documents/${document._id}/uploads`, {
+    method: "POST", headers: { authorization: `Bearer ${ownerToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ fileName: "resumable-plan.pdf", contentType: "application/pdf", totalBytes: resumableBytes.length, sha256: resumableSha }),
+  });
+  assert.equal(uploadSessionResponse.status, 201);
+  const uploadSessionBody = await uploadSessionResponse.json() as { data: { uploadId: string; expectedParts: number } };
+  assert.equal(uploadSessionBody.data.expectedParts, 1);
+  const partUrl = `${baseUrl}/api/v1/projects/${project._id}/delivery/documents/${document._id}/uploads/${uploadSessionBody.data.uploadId}/parts/1`;
+  assert.equal((await fetch(partUrl, { method: "PUT", headers: { authorization: `Bearer ${ownerToken}`, "content-type": "application/octet-stream", "x-part-sha256": "0".repeat(64) }, body: resumableBytes })).status, 422);
+  const partHeaders = { authorization: `Bearer ${ownerToken}`, "content-type": "application/octet-stream", "x-part-sha256": resumableSha };
+  assert.equal((await fetch(partUrl, { method: "PUT", headers: partHeaders, body: resumableBytes })).status, 201);
+  assert.equal((await fetch(partUrl, { method: "PUT", headers: partHeaders, body: resumableBytes })).status, 200);
+  const completeUrl = `${baseUrl}/api/v1/projects/${project._id}/delivery/documents/${document._id}/uploads/${uploadSessionBody.data.uploadId}/complete`;
+  const completedUpload = await fetch(completeUrl, { method: "POST", headers: { authorization: `Bearer ${ownerToken}` } });
+  assert.equal(completedUpload.status, 201);
+  const completedBody = await completedUpload.json() as { asset: { fileName: string; sha256: string; byteSize: number } };
+  assert.equal(completedBody.asset.fileName, "resumable-plan.pdf");
+  assert.equal(completedBody.asset.sha256, resumableSha);
+  assert.equal(completedBody.asset.byteSize, resumableBytes.length);
+  assert.equal(await DocumentUploadSession.countDocuments({ _id: uploadSessionBody.data.uploadId }), 0);
+  assert.equal((await fetch(completeUrl, { method: "POST", headers: { authorization: `Bearer ${ownerToken}` } })).status, 404);
 
 });
