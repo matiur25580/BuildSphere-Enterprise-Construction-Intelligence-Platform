@@ -5,7 +5,7 @@ import { HttpError } from "../../common/http-error.js";
 import { Project } from "./project.model.js";
 import { WorkItem } from "./work-item.model.js";
 import { ProjectMembership } from "./project-membership.model.js";
-import { publishProjectEventSafely } from "../collaboration/collaboration.service.js";
+import { runProjectMutationWithEvent } from "../collaboration/collaboration.service.js";
 import { createProjectSchema, updateProjectSchema, createWorkItemSchema, updateWorkItemSchema } from "./project.schemas.js";
 
 const context = (request: Request) => {
@@ -88,10 +88,12 @@ export const createWorkItem = asyncHandler(async (request: Request, response: Re
     const assignee = await ProjectMembership.exists({ organizationId: auth.organizationId, projectId, userId: input.assignedUserId, status: "active" });
     if (!assignee) throw new HttpError(400, "Assignee must be an active member of this project");
   }
-  const item = await WorkItem.create({
-    ...input, parentId: input.parentId || null, organizationId: auth.organizationId, projectId,
-  });
-  if (input.assignedUserId) await publishProjectEventSafely({ organizationId: auth.organizationId, projectId: String(projectId), actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(item._id), summary: `Work item assigned: ${item.title}`, recipientIds: [input.assignedUserId] });
+  const item = new WorkItem({ ...input, parentId: input.parentId || null, organizationId: auth.organizationId, projectId });
+  if (input.assignedUserId) {
+    await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(projectId), actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(item._id), summary: `Work item assigned: ${item.title}`, recipientIds: [input.assignedUserId] }, (session) => item.save(session ? { session } : {}));
+  } else {
+    await item.save();
+  }
   response.status(201).json({ success: true, data: item });
 });
 
@@ -117,8 +119,11 @@ export const updateWorkItem = asyncHandler(async (request: Request, response: Re
   const previousAssignee = existing.assignedUserId ? String(existing.assignedUserId) : null;
   Object.assign(existing, input);
   if (input.status === "completed" && input.progress === undefined) existing.progress = 100;
-  await existing.save();
   const nextAssignee = existing.assignedUserId ? String(existing.assignedUserId) : null;
-  if (nextAssignee && nextAssignee !== previousAssignee) await publishProjectEventSafely({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(existing._id), summary: `Work item assigned: ${existing.title}`, recipientIds: [nextAssignee] });
+  if (nextAssignee && nextAssignee !== previousAssignee) {
+    await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(existing._id), summary: `Work item assigned: ${existing.title}`, recipientIds: [nextAssignee] }, (session) => existing.save(session ? { session } : {}));
+  } else {
+    await existing.save();
+  }
   response.json({ success: true, data: existing });
 });
