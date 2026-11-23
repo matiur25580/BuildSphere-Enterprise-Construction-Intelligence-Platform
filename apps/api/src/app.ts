@@ -15,6 +15,7 @@ import collaborationRoutes from "./modules/collaboration/collaboration.routes.js
 import notificationRoutes from "./modules/collaboration/notification.routes.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { createRequestId, isAllowedOrigin, parseAllowedOrigins, parseTrustProxy } from "./config/security.js";
+import { getCollaborationTransactionStatus } from "./modules/collaboration/collaboration.service.js";
 
 const app = express();
 const allowedOrigins = parseAllowedOrigins(process.env.CLIENT_URL);
@@ -64,7 +65,7 @@ app.get("/api/v1/ready", (_request, response) => {
     success: ready,
     service: "BuildSphere API",
     status: ready ? "ready" : "not_ready",
-    dependencies: { mongodb: ready ? "connected" : "disconnected" },
+    dependencies: { mongodb: ready ? "connected" : "disconnected", collaborationOutboxTransactions: getCollaborationTransactionStatus() },
     timestamp: new Date().toISOString(),
   });
 });
