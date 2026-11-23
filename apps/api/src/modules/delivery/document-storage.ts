@@ -1,5 +1,6 @@
 import { createConnection } from "node:net";
-import { access, constants } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { basename, extname, join } from "node:path";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
