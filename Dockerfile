@@ -4,7 +4,7 @@ COPY package*.json ./
 COPY apps/api/package*.json ./apps/api/
 COPY apps/web/package*.json ./apps/web/
 COPY packages/shared/package*.json ./packages/shared/
-RUN npm install
+RUN npm ci
 COPY . .
 RUN npm run build
 
@@ -15,7 +15,7 @@ COPY package*.json ./
 COPY apps/api/package*.json ./apps/api/
 COPY apps/web/package*.json ./apps/web/
 COPY packages/shared/package*.json ./packages/shared/
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 ENV DOCUMENT_STORAGE_DIR=/var/lib/buildsphere/documents
 RUN mkdir -p /var/lib/buildsphere/documents && chown -R node:node /var/lib/buildsphere
