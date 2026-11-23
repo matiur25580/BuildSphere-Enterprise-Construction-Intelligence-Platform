@@ -64,7 +64,7 @@ test("expired sessions and abandoned completion objects are cleaned without dele
     contentType: "application/pdf", byteSize: bytes.length, sha256: "b".repeat(64), scanStatus: "clean", uploadedBy: createdBy,
   });
   const staleTime = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-  await DocumentUploadSession.updateMany({ _id: { $in: [abandoned._id, referenced._id] } }, { $set: { updatedAt: staleTime } });
+  await DocumentUploadSession.updateMany({ _id: { $in: [abandoned._id, referenced._id] } }, { $set: { updatedAt: staleTime } }, { timestamps: false });
 
   const result = await reconcileExpiredDocumentUploads(now);
   assert.equal(result.examined, 3);
