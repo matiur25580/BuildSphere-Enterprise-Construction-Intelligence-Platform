@@ -1,8 +1,5 @@
 import type { Request, Response } from "express";
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import mongoose from "mongoose";
 import { asyncHandler } from "../../common/async-handler.js";
 import { HttpError } from "../../common/http-error.js";
@@ -16,7 +13,7 @@ import { Submittal } from "./submittal.model.js";
 import { ProjectDocument } from "./project-document.model.js";
 import { DocumentAsset } from "./document-asset.model.js";
 import { DocumentAuditEvent } from "./document-audit.model.js";
-import { documentStorageDirectory, normalizeDocumentFile, scanDocumentWithClamAv } from "./document-storage.js";
+import { deleteDocumentFile, normalizeDocumentFile, readDocumentFile, scanDocumentWithClamAv, storeDocumentFile } from "./document-storage.js";
 import { getCollaborationTransactionStatus } from "../collaboration/collaboration.service.js";
 import { runProjectMutationWithEvent } from "../collaboration/collaboration.service.js";
 import { createInspectionSchema, inspectionStatusSchema, createNcrSchema, ncrStatusSchema, createCapaSchema, capaStatusSchema, createSafetyEventSchema, safetyStatusSchema, createRfiSchema, respondRfiSchema, createSubmittalSchema, reviewSubmittalSchema, createDocumentSchema, addDocumentVersionSchema, documentApprovalSchema } from "./delivery.schemas.js";
@@ -80,11 +77,8 @@ export const uploadDocumentFile = asyncHandler(async (request: Request, response
   const normalized = normalizeDocumentFile(request.body, request.header("x-file-name"), request.header("content-type"));
   await scanDocumentWithClamAv(normalized.buffer);
   const storageKey = randomUUID();
-  const storageDirectory = documentStorageDirectory();
-  const filePath = join(storageDirectory, storageKey);
   const sha256 = createHash("sha256").update(normalized.buffer).digest("hex");
-  await mkdir(storageDirectory, { recursive: true, mode: 0o700 });
-  await writeFile(filePath, normalized.buffer, { flag: "wx", mode: 0o600 });
+  await storeDocumentFile(storageKey, normalized.buffer, normalized.contentType);
   try {
     const assetId = new mongoose.Types.ObjectId();
     const result = await runProjectMutationWithEvent({
@@ -122,7 +116,7 @@ export const uploadDocumentFile = asyncHandler(async (request: Request, response
     });
     response.status(201).json({ success: true, data: result, asset: { id: String(assetId), fileName: normalized.fileName, contentType: normalized.contentType, byteSize: normalized.buffer.length, sha256, scanStatus: "clean" } });
   } catch (error) {
-    await unlink(filePath).catch(() => undefined);
+    await deleteDocumentFile(storageKey).catch(() => undefined);
     throw error;
   }
 });
@@ -139,22 +133,10 @@ export const downloadDocumentFile = asyncHandler(async (request: Request, respon
     DocumentAsset.findOne({ _id: assetId, documentId, ...scope, scanStatus: "clean" }).lean(),
   ]);
   if (!document || !asset) throw new HttpError(404, "Document file not found");
-  const filePath = join(documentStorageDirectory(), asset.storageKey);
-  try {
-    const fileStats = await stat(filePath);
-    if (fileStats.size !== asset.byteSize) throw new HttpError(503, "Stored document integrity check failed");
-    const digest = createHash("sha256");
-    await new Promise<void>((resolve, reject) => {
-      const verifier = createReadStream(filePath);
-      verifier.on("data", (chunk) => { digest.update(chunk); });
-      verifier.on("end", resolve);
-      verifier.on("error", reject);
-    });
-    if (digest.digest("hex") !== asset.sha256) throw new HttpError(503, "Stored document checksum verification failed");
-  } catch (error) {
-    if (error instanceof HttpError) throw error;
-    throw new HttpError(404, "Stored document file is unavailable");
-  }
+  const fileBuffer = await readDocumentFile(asset.storageKey);
+  if (fileBuffer.length !== asset.byteSize) throw new HttpError(503, "Stored document integrity check failed");
+  const checksum = createHash("sha256").update(fileBuffer).digest("hex");
+  if (checksum !== asset.sha256) throw new HttpError(503, "Stored document checksum verification failed");
   await DocumentAuditEvent.create({
     ...scope, documentId, assetId: asset._id, actorId: auth.userId,
     action: "download_authorized", fileName: asset.fileName, sha256: asset.sha256,
@@ -165,7 +147,5 @@ export const downloadDocumentFile = asyncHandler(async (request: Request, respon
   response.setHeader("Content-Disposition", `attachment; filename="document"; filename*=UTF-8''${encodeURIComponent(asset.fileName)}`);
   response.setHeader("Cache-Control", "private, no-store, max-age=0");
   response.setHeader("X-Content-Type-Options", "nosniff");
-  const stream = createReadStream(filePath);
-  stream.on("error", () => response.destroy());
-  stream.pipe(response);
+  response.end(fileBuffer);
 });

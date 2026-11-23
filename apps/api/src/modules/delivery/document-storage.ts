@@ -1,16 +1,13 @@
 import { createConnection } from "node:net";
-import { basename, extname } from "node:path";
+import { createHash } from "node:crypto";
+import { basename, extname, join } from "node:path";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { HttpError } from "../../common/http-error.js";
 
-const MIME_BY_EXTENSION: Record<string, string> = {
-  ".pdf": "application/pdf",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".webp": "image/webp",
-  ".ifc": "application/ifc",
-};
+const MIME_BY_EXTENSION: Record<string, string> = { ".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".ifc": "application/ifc" };
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
+let s3Client: S3Client | undefined;
 
 export const normalizeDocumentFile = (body: unknown, rawName: string | undefined, contentType: string | undefined) => {
   if (!Buffer.isBuffer(body) || body.length === 0) throw new HttpError(400, "A non-empty document file is required");
@@ -19,11 +16,8 @@ export const normalizeDocumentFile = (body: unknown, rawName: string | undefined
   let decodedName: string;
   try { decodedName = decodeURIComponent(rawName); } catch { throw new HttpError(400, "Invalid file name encoding"); }
   const fileName = basename(decodedName.replace(/\\/g, "/")).replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 180);
-  const extension = extname(fileName).toLowerCase();
-  const expectedType = MIME_BY_EXTENSION[extension];
-  if (!fileName || !expectedType || contentType?.split(";")[0].trim().toLowerCase() !== expectedType) {
-    throw new HttpError(415, "Only matching PDF, PNG, JPEG, WEBP and IFC document files are supported");
-  }
+  const expectedType = MIME_BY_EXTENSION[extname(fileName).toLowerCase()];
+  if (!fileName || !expectedType || contentType?.split(";")[0].trim().toLowerCase() !== expectedType) throw new HttpError(415, "Only matching PDF, PNG, JPEG, WEBP and IFC document files are supported");
   const validSignature =
     (expectedType === "application/pdf" && body.subarray(0, 5).toString("ascii") === "%PDF-") ||
     (expectedType === "image/png" && body.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ||
@@ -41,56 +35,59 @@ export const scanDocumentWithClamAv = async (buffer: Buffer): Promise<void> => {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new HttpError(503, "CLAMD_PORT must be a valid TCP port");
   await new Promise<void>((resolve, reject) => {
     const socket = createConnection({ host, port });
-    let response = "";
-    let settled = false;
-    const finish = (error?: Error) => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      if (error) reject(error); else resolve();
-    };
+    let response = ""; let settled = false;
+    const finish = (error?: Error) => { if (settled) return; settled = true; socket.destroy(); if (error) reject(error); else resolve(); };
     socket.setTimeout(30_000, () => finish(new HttpError(503, "Document malware scan timed out")));
     socket.on("error", () => finish(new HttpError(503, "Document malware scanner is unavailable")));
-    socket.on("data", (chunk: Buffer) => {
-      response += chunk.toString("utf8");
-      if (response.includes("FOUND")) finish(new HttpError(422, "Malware was detected; the document was rejected"));
-      else if (response.includes("OK")) finish();
-      else if (response.length > 4096) finish(new HttpError(503, "Unexpected malware scanner response"));
-    });
+    socket.on("data", (chunk: Buffer) => { response += chunk.toString("utf8"); if (response.includes("FOUND")) finish(new HttpError(422, "Malware was detected; the document was rejected")); else if (response.includes("OK")) finish(); else if (response.length > 4096) finish(new HttpError(503, "Unexpected malware scanner response")); });
     socket.on("connect", () => {
       socket.write(Buffer.from("zINSTREAM\0", "binary"));
-      const chunkSize = 64 * 1024;
-      for (let offset = 0; offset < buffer.length; offset += chunkSize) {
-        const chunk = buffer.subarray(offset, Math.min(offset + chunkSize, buffer.length));
-        const header = Buffer.alloc(4);
-        header.writeUInt32BE(chunk.length, 0);
-        socket.write(header);
-        socket.write(chunk);
+      for (let offset = 0; offset < buffer.length; offset += 64 * 1024) {
+        const chunk = buffer.subarray(offset, Math.min(offset + 64 * 1024, buffer.length));
+        const header = Buffer.alloc(4); header.writeUInt32BE(chunk.length, 0); socket.write(header); socket.write(chunk);
       }
       socket.write(Buffer.alloc(4));
     });
   });
 };
 
-export const checkClamAvHealth = async (): Promise<boolean> => {
-  const host = process.env.CLAMD_HOST;
-  const port = Number(process.env.CLAMD_PORT ?? 3310);
-  if (!host || !Number.isInteger(port) || port < 1 || port > 65535) return false;
-  return await new Promise<boolean>((resolve) => {
-    const socket = createConnection({ host, port });
-    let settled = false;
-    const finish = (healthy: boolean) => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      resolve(healthy);
-    };
-    socket.setTimeout(2_000, () => finish(false));
-    socket.on("error", () => finish(false));
-    socket.on("data", (chunk: Buffer) => finish(chunk.toString("utf8").includes("PONG")));
-    socket.on("connect", () => socket.write(Buffer.from("zPING\0", "binary")));
-  });
+const provider = () => {
+  const value = process.env.DOCUMENT_STORAGE_PROVIDER?.trim().toLowerCase();
+  if (value) return value;
+  if (process.env.NODE_ENV === "production") throw new HttpError(503, "Set DOCUMENT_STORAGE_PROVIDER=s3 in production");
+  return "local";
+};
+export const documentStorageDirectory = () => process.env.DOCUMENT_STORAGE_DIR ?? "/var/lib/buildsphere/documents";
+const bucket = () => { const value = process.env.DOCUMENT_S3_BUCKET?.trim(); if (!value) throw new HttpError(503, "DOCUMENT_S3_BUCKET is required"); return value; };
+const client = () => {
+  if (s3Client) return s3Client;
+  const region = process.env.DOCUMENT_S3_REGION ?? process.env.AWS_REGION;
+  if (!region) throw new HttpError(503, "DOCUMENT_S3_REGION or AWS_REGION is required");
+  const accessKeyId = process.env.DOCUMENT_S3_ACCESS_KEY_ID; const secretAccessKey = process.env.DOCUMENT_S3_SECRET_ACCESS_KEY;
+  if (Boolean(accessKeyId) !== Boolean(secretAccessKey)) throw new HttpError(503, "Configure both S3 access key and secret");
+  s3Client = new S3Client({ region, ...(process.env.DOCUMENT_S3_ENDPOINT ? { endpoint: process.env.DOCUMENT_S3_ENDPOINT } : {}), forcePathStyle: process.env.DOCUMENT_S3_FORCE_PATH_STYLE === "true", ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}) });
+  return s3Client;
 };
 
-export const documentStorageDirectory = () => process.env.DOCUMENT_STORAGE_DIR ?? "/var/lib/buildsphere/documents";
+export const storeDocumentFile = async (key: string, data: Buffer, contentType: string): Promise<void> => {
+  const mode = provider();
+  if (mode === "local") { const directory = documentStorageDirectory(); await mkdir(directory, { recursive: true, mode: 0o700 }); await writeFile(join(directory, key), data, { flag: "wx", mode: 0o600 }); return; }
+  if (mode === "s3") { const sha256 = createHash("sha256").update(data).digest("hex"); await client().send(new PutObjectCommand({ Bucket: bucket(), Key: key, Body: data, ContentLength: data.length, ContentType: contentType, ServerSideEncryption: "AES256", Metadata: { sha256 } })); return; }
+  throw new HttpError(503, "DOCUMENT_STORAGE_PROVIDER must be local or s3");
+};
+export const readDocumentFile = async (key: string): Promise<Buffer> => {
+  const mode = provider();
+  if (mode === "local") { try { return await readFile(join(documentStorageDirectory(), key)); } catch { throw new HttpError(404, "Stored document file is unavailable"); } }
+  if (mode === "s3") {
+    try { const result = await client().send(new GetObjectCommand({ Bucket: bucket(), Key: key })); if (!result.Body) throw new HttpError(404, "Stored document file is unavailable"); return Buffer.from(await result.Body.transformToByteArray()); }
+    catch (error) { if (error instanceof HttpError) throw error; throw new HttpError(404, "Stored document file is unavailable"); }
+  }
+  throw new HttpError(503, "DOCUMENT_STORAGE_PROVIDER must be local or s3");
+};
+export const deleteDocumentFile = async (key: string): Promise<void> => {
+  const mode = provider();
+  if (mode === "local") { await unlink(join(documentStorageDirectory(), key)).catch(() => undefined); return; }
+  if (mode === "s3") { await client().send(new DeleteObjectCommand({ Bucket: bucket(), Key: key })); return; }
+  throw new HttpError(503, "DOCUMENT_STORAGE_PROVIDER must be local or s3");
+};
 export const maxDocumentFileBytes = MAX_FILE_BYTES;
