@@ -5,6 +5,7 @@ import { HttpError } from "../../common/http-error.js";
 import { Project } from "../projects/project.model.js";
 import { CostCode } from "./cost-code.model.js";
 import { CommercialRecord } from "./commercial-record.model.js";
+import { publishProjectEventSafely } from "../collaboration/collaboration.service.js";
 import { createCostCodeSchema, createCommercialRecordSchema, updateCommercialStatusSchema } from "./commercial.schemas.js";
 
 const authContext = (request: Request) => {
@@ -47,6 +48,7 @@ export const createRecord = asyncHandler(async (request: Request, response: Resp
     if (!code) throw new HttpError(400, "Cost code must be active and belong to this project");
   }
   const record = await CommercialRecord.create({ ...input, costCodeId: input.costCodeId || null, organizationId: auth.organizationId, projectId: String(request.params.projectId), createdBy: auth.userId });
+  await publishProjectEventSafely({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "commercial.record_created", targetType: "commercial_record", targetId: String(record._id), summary: `${record.type.replace("_", " ")} record created` });
   response.status(201).json({ success: true, data: record });
 });
 export const updateRecordStatus = asyncHandler(async (request: Request, response: Response) => {
@@ -62,6 +64,7 @@ export const updateRecordStatus = asyncHandler(async (request: Request, response
   record.status = input.status;
   if (input.notes !== undefined) record.notes = input.notes;
   await record.save();
+  await publishProjectEventSafely({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "commercial.status_changed", targetType: "commercial_record", targetId: String(record._id), summary: `Commercial record status changed to ${record.status}` });
   response.json({ success: true, data: record });
 });
 export const getCommercialSummary = asyncHandler(async (request: Request, response: Response) => {
