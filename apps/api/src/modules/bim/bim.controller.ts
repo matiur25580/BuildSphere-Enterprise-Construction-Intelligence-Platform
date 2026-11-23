@@ -78,7 +78,7 @@ export const createBimIssue = asyncHandler(async (request: Request, response: Re
     if (!assignee) throw new HttpError(422, "Assignee must be an active member of this project");
   }
   const item = new BimIssue({
-    ...scope, modelId: model._id, modelVersion: model.modelVersion, ...input,
+    ...scope, ...input, modelId: model._id, modelVersion: model.modelVersion,
     assignedToUserId: input.assignedToUserId ?? null, dueDate: input.dueDate ?? null,
     createdBy: auth.userId, history: [{ status: "open", comment: "Issue created", actorId: auth.userId }],
   });
