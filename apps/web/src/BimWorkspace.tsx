@@ -5,7 +5,7 @@ type Project = { _id: string; code: string; name: string };
 type DocumentVersion = { version: number; fileName: string; fileAssetId?: string | null };
 type ControlledDocument = { _id: string; documentNo: string; title: string; currentVersion: number; versions: DocumentVersion[] };
 type BimModel = { _id: string; modelName: string; discipline: string; revision: string; ifcSchema: string; modelVersion: number; checksum: string; documentId: { documentNo: string; title: string } | string };
-type BimIssue = { _id: string; reference: string; title: string; description: string; issueType: string; priority: string; status: string; ifcGlobalId: string; location: string; modelVersion: number; modelId: { modelName: string; discipline: string } | string; dueDate?: string | null; history: { status: string; comment: string; actedAt: string }[] };
+type BimIssue = { _id: string; reference: string; title: string; description: string; issueType: string; priority: string; status: string; ifcGlobalId: string; location: string; modelVersion: number; modelId: { modelName: string; discipline: string } | string; dueDate?: string | null; history: { status: string; comment: string; actedAt: string }[]; viewpoint?: { selectedComponents?: string[] } | null };
 async function request<T>(path: string, token: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   if (!(options.body instanceof Blob)) headers.set("Content-Type", "application/json");
