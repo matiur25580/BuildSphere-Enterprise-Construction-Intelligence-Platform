@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRequestId, isAllowedOrigin, parseAllowedOrigins, parseTrustProxy } from "./security.js";
+import { createRequestId, isAllowedOrigin, isApiRateLimitExemptPath, parseAllowedOrigins, parseTrustProxy } from "./security.js";
 
 test("parses a comma-separated CORS allowlist", () => {
   assert.deepEqual(parseAllowedOrigins("https://app.example.com, https://admin.example.com"), [
@@ -27,4 +27,12 @@ test("creates unique UUID request identifiers", () => {
   const second = createRequestId();
   assert.match(first, /^[0-9a-f-]{36}$/);
   assert.notEqual(first, second);
+});
+
+test("exempts health and readiness paths after the /api mount prefix is stripped", () => {
+  assert.equal(isApiRateLimitExemptPath("/v1/health"), true);
+  assert.equal(isApiRateLimitExemptPath("/v1/ready"), true);
+  assert.equal(isApiRateLimitExemptPath("/v1/auth/login"), false);
+  assert.equal(isApiRateLimitExemptPath("/health"), false);
+  assert.equal(isApiRateLimitExemptPath("/ready"), false);
 });
