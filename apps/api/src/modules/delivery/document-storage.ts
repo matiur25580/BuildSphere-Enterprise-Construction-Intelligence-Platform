@@ -54,7 +54,7 @@ const signedS3Request = async (method: "PUT" | "GET" | "DELETE" | "HEAD", key?: 
   const signature = createHmac("sha256", signingKey).update(stringToSign).digest("hex");
   headers.authorization = `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
   const requestHeaders = new Headers(); for (const [name,value] of Object.entries(headers)) if (name !== "host") requestHeaders.set(name,value);
-  try { return await fetch(url,{method,headers:requestHeaders,body:method === "PUT" ? body : undefined,signal:AbortSignal.timeout(15000)}); }
+  try { return await fetch(url,{method,headers:requestHeaders,body:method === "PUT" && body ? Uint8Array.from(body) : undefined,signal:AbortSignal.timeout(15000)}); }
   catch { throw new HttpError(503,"S3 document storage is unavailable"); }
 };
 export const documentStorageDriver = () => {
