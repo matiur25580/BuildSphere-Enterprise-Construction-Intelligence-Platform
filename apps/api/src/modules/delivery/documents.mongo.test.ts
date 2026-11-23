@@ -17,6 +17,8 @@ import { ProjectMembership } from "../projects/project-membership.model.js";
 import { ProjectDocument } from "./project-document.model.js";
 import { DocumentAsset } from "./document-asset.model.js";
 import { DocumentAuditEvent } from "./document-audit.model.js";
+import { BimModel } from "../bim/bim-model.model.js";
+import { BimIssue } from "../bim/bim-issue.model.js";
 
 const mongoUri = process.env.MONGODB_URI;
 const isolatedMongoUri = mongoUri?.replace("buildsphere_ci", "buildsphere_documents_ci");
@@ -29,7 +31,7 @@ if (!mongoUri) throw new Error("MONGODB_URI is required for document integration
 before(async () => {
   await mongoose.connect(isolatedMongoUri ?? mongoUri!);
   assert.equal(await configureCollaborationTransactions(), true, "Document integration tests require MongoDB transactions");
-  await Promise.all([User.syncIndexes(), Organization.syncIndexes(), Membership.syncIndexes(), Project.syncIndexes(), ProjectMembership.syncIndexes(), ProjectDocument.syncIndexes(), DocumentAsset.syncIndexes(), DocumentAuditEvent.syncIndexes()]);
+  await Promise.all([User.syncIndexes(), Organization.syncIndexes(), Membership.syncIndexes(), Project.syncIndexes(), ProjectMembership.syncIndexes(), ProjectDocument.syncIndexes(), DocumentAsset.syncIndexes(), DocumentAuditEvent.syncIndexes(), BimModel.syncIndexes(), BimIssue.syncIndexes()]);
   storageDirectory = await mkdtemp(join(tmpdir(), "buildsphere-documents-"));
   process.env.DOCUMENT_STORAGE_DIR = storageDirectory;
   clamdServer = createServer((socket) => {
@@ -142,4 +144,37 @@ test("private document upload and download enforce scan, tenant and project-memb
   assert.equal((await fetch(`${baseUrl}/api/v1/projects/${project._id}/delivery/documents/${document._id}/files/${asset._id}/download`, { headers: { authorization: `Bearer ${tenantBToken}` } })).status, 404);
   assert.equal(await DocumentAuditEvent.countDocuments({ documentId: document._id, action: "uploaded" }), 1);
   assert.equal(await DocumentAuditEvent.countDocuments({ documentId: document._id, action: "download_authorized" }), 2);
+  const ifc = Buffer.from("ISO-10303-21;\\nHEADER;\\nFILE_DESCRIPTION(('BuildSphere IFC fixture'),'2;1');\\nENDSEC;\\nDATA;\\nENDSEC;\\nEND-ISO-10303-21;");
+  const ifcUpload = await fetch(baseUrl + path, { method: "POST", headers: { authorization: `Bearer ${ownerToken}`, "content-type": "application/ifc", "x-file-name": "structure-model.ifc" }, body: ifc });
+  assert.equal(ifcUpload.status, 201);
+  const bimPath = `/api/v1/projects/${project._id}/bim`;
+  const registerModel = (bearer: string) => fetch(baseUrl + bimPath + "/models", { method: "POST", headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" }, body: JSON.stringify({ documentId: String(document._id), modelName: "Structural coordination model", discipline: "structure", revision: "B", ifcSchema: "IFC4", description: "Level 1 structural scope" }) });
+  assert.equal((await registerModel(viewerToken)).status, 403);
+  const registered = await registerModel(ownerToken);
+  assert.equal(registered.status, 201);
+  const registeredBody = await registered.json() as { data: { _id: string; modelVersion: number; checksum: string } };
+  assert.equal(registeredBody.data.modelVersion, 2);
+  assert.match(registeredBody.data.checksum, /^[a-f0-9]{64}$/);
+  const globalId = "0123456789ABCDEFGHIJKL";
+  const issuePayload = { modelId: registeredBody.data._id, reference: "BCF-001", title: "Duct clashes with beam", description: "The level two supply duct intersects the primary structural beam.", issueType: "clash", priority: "high", ifcGlobalId: globalId, location: "Level 02 · Grid C5", assignedToUserId: String(viewer._id), viewpoint: { camera: { position: { x: 0, y: 0, z: 10 }, direction: { x: 0, y: 0, z: -1 }, up: { x: 0, y: 1, z: 0 }, fieldOfView: 60 }, selectedComponents: [globalId], hiddenComponents: [] } };
+  const issueUrl = baseUrl + bimPath + "/issues";
+  const createIssue = (payload: unknown) => fetch(issueUrl, { method: "POST", headers: { authorization: `Bearer ${ownerToken}`, "content-type": "application/json" }, body: JSON.stringify(payload) });
+  assert.equal((await createIssue({ ...issuePayload, reference: "BCF-BAD", ifcGlobalId: "not-a-guid" })).status, 400);
+  assert.equal((await createIssue({ ...issuePayload, reference: "BCF-INACTIVE", assignedToUserId: String(inactive._id) })).status, 422);
+  const issueResponse = await createIssue(issuePayload);
+  assert.equal(issueResponse.status, 201);
+  const issueBody = await issueResponse.json() as { data: { _id: string; modelVersion: number; status: string; ifcGlobalId: string } };
+  assert.equal(issueBody.data.modelVersion, 2);
+  assert.equal(issueBody.data.status, "open");
+  assert.equal(issueBody.data.ifcGlobalId, globalId);
+  const issueList = await fetch(issueUrl, { headers: { authorization: `Bearer ${viewerToken}` } });
+  assert.equal(issueList.status, 200);
+  const listed = await issueList.json() as { data: { _id: string }[] };
+  assert.equal(listed.data.length, 1);
+  assert.equal((await fetch(issueUrl, { headers: { authorization: `Bearer ${tenantBToken}` } })).status, 404);
+  const statusUrl = issueUrl + `/${issueBody.data._id}/status`;
+  assert.equal((await fetch(statusUrl, { method: "PATCH", headers: { authorization: `Bearer ${viewerToken}`, "content-type": "application/json" }, body: JSON.stringify({ status: "in_progress" }) })).status, 403);
+  assert.equal((await fetch(statusUrl, { method: "PATCH", headers: { authorization: `Bearer ${ownerToken}`, "content-type": "application/json" }, body: JSON.stringify({ status: "in_progress", comment: "Assigned for coordination" }) })).status, 200);
+  assert.equal((await fetch(statusUrl, { method: "PATCH", headers: { authorization: `Bearer ${ownerToken}`, "content-type": "application/json" }, body: JSON.stringify({ status: "closed" }) })).status, 409);
+
 });
