@@ -48,7 +48,7 @@ before(async () => {
       }
       while (data.length >= 4) {
         const length = data.readUInt32BE(0);
-        if (length === 0) { socket.end(Buffer.from(scanned.includes(Buffer.from("EICAR")) ? "stream: Eicar-Test-Signature FOUND\\0" : "stream: OK\\0")); return; }
+        if (length === 0) { socket.end(Buffer.from(scanned.includes(Buffer.from("EICAR")) ? "stream: Eicar-Test-Signature FOUND\0" : "stream: OK\0")); return; }
         if (data.length < 4 + length) return;
         scanned = Buffer.concat([scanned, data.subarray(4, 4 + length)]);
         data = data.subarray(4 + length);
