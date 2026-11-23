@@ -46,6 +46,7 @@ export const publishProjectEvent = async (input: ProjectEventInput): Promise<voi
   });
 };
 
+export const collaborationRetryDelay = (attempt: number): number => Math.min(60_000 * (2 ** Math.max(attempt - 1, 0)), 60 * 60 * 1000);
 const MAX_ATTEMPTS = 8;
 const LEASE_MS = 60_000;
 
@@ -98,7 +99,7 @@ export const processCollaborationOutboxBatch = async (batchSize = 25): Promise<n
     } catch (error) {
       const attempts = event.attempts;
       const failed = attempts >= MAX_ATTEMPTS;
-      const delayMs = Math.min(60_000 * (2 ** Math.max(attempts - 1, 0)), 60 * 60 * 1000);
+      const delayMs = collaborationRetryDelay(attempts);
       await CollaborationOutbox.updateOne({ _id: event._id, status: "processing" }, {
         $set: {
           status: failed ? "failed" : "pending",
