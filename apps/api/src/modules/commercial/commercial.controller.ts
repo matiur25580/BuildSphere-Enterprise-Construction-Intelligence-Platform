@@ -18,18 +18,45 @@ const projectFor = async (projectId: string, organizationId: string) => {
   return project;
 };
 
+const decimalUnits = (value: unknown): bigint => {
+  const match = String(value ?? "0").match(/^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
+  if (!match) throw new Error("Invalid Decimal128 value in commercial summary");
+  const [, sign, whole, fraction = "", exponentText = "0"] = match;
+  const digits = BigInt(`${whole}${fraction}`);
+  const scale = fraction.length - Number(exponentText);
+  let units: bigint;
+  if (scale <= 4) {
+    units = digits * 10n ** BigInt(4 - scale);
+  } else {
+    const divisor = 10n ** BigInt(scale - 4);
+    if (digits % divisor !== 0n) throw new Error("Financial value exceeds supported decimal precision");
+    units = digits / divisor;
+  }
+  return sign === "-" ? -units : units;
+};
+const decimalString = (units: bigint): string => {
+  const sign = units < 0n ? "-" : "";
+  const absolute = units < 0n ? -units : units;
+  const whole = absolute / 10_000n;
+  const fraction = (absolute % 10_000n).toString().padStart(4, "0").replace(/0+$/, "");
+  return fraction ? `${sign}${whole}.${fraction}` : `${sign}${whole}`;
+};
+const addDecimal = (left: unknown, right: unknown): string => decimalString(decimalUnits(left) + decimalUnits(right));
+const subtractDecimal = (left: unknown, right: unknown): string => decimalString(decimalUnits(left) - decimalUnits(right));
+const asDecimalString = (value: unknown): string => String(value ?? "0");
+
 export const listCostCodes = asyncHandler(async (request: Request, response: Response) => {
   const auth = authContext(request);
   await projectFor(String(request.params.projectId), auth.organizationId);
   const items = await CostCode.find({ organizationId: auth.organizationId, projectId: String(request.params.projectId) }).sort({ code: 1 }).lean();
-  response.json({ success: true, data: items });
+  response.json({ success: true, data: items.map((item) => ({ ...item, budget: asDecimalString(item.budget) })) });
 });
 export const createCostCode = asyncHandler(async (request: Request, response: Response) => {
   const auth = authContext(request);
   await projectFor(String(request.params.projectId), auth.organizationId);
   const input = createCostCodeSchema.parse(request.body);
   const item = await CostCode.create({ ...input, organizationId: auth.organizationId, projectId: String(request.params.projectId) });
-  response.status(201).json({ success: true, data: item });
+  response.status(201).json({ success: true, data: { ...item.toObject(), budget: asDecimalString(item.budget) } });
 });
 export const listRecords = asyncHandler(async (request: Request, response: Response) => {
   const auth = authContext(request);
@@ -37,7 +64,7 @@ export const listRecords = asyncHandler(async (request: Request, response: Respo
   const filter: Record<string, unknown> = { organizationId: auth.organizationId, projectId: String(request.params.projectId) };
   if (typeof request.query.type === "string" && ["purchase_order", "invoice", "payment_claim"].includes(request.query.type)) filter.type = request.query.type;
   const records = await CommercialRecord.find(filter).populate("costCodeId", "code name").sort({ issueDate: -1, createdAt: -1 }).lean();
-  response.json({ success: true, data: records });
+  response.json({ success: true, data: records.map((record) => ({ ...record, amount: asDecimalString(record.amount) })) });
 });
 export const createRecord = asyncHandler(async (request: Request, response: Response) => {
   const auth = authContext(request);
@@ -49,7 +76,7 @@ export const createRecord = asyncHandler(async (request: Request, response: Resp
   }
   const record = new CommercialRecord({ ...input, costCodeId: input.costCodeId || null, organizationId: auth.organizationId, projectId: String(request.params.projectId), createdBy: auth.userId });
   await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "commercial.record_created", targetType: "commercial_record", targetId: String(record._id), summary: `${record.type.replace("_", " ")} record created` }, (session) => record.save(session ? { session } : {}));
-  response.status(201).json({ success: true, data: record });
+  response.status(201).json({ success: true, data: { ...record.toObject(), amount: asDecimalString(record.amount) } });
 });
 export const updateRecordStatus = asyncHandler(async (request: Request, response: Response) => {
   const auth = authContext(request);
@@ -64,7 +91,7 @@ export const updateRecordStatus = asyncHandler(async (request: Request, response
   record.status = input.status;
   if (input.notes !== undefined) record.notes = input.notes;
   await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "commercial.status_changed", targetType: "commercial_record", targetId: String(record._id), summary: `Commercial record status changed to ${record.status}` }, (session) => record.save(session ? { session } : {}));
-  response.json({ success: true, data: record });
+  response.json({ success: true, data: { ...record.toObject(), amount: asDecimalString(record.amount) } });
 });
 export const getCommercialSummary = asyncHandler(async (request: Request, response: Response) => {
   const auth = authContext(request);
@@ -72,19 +99,58 @@ export const getCommercialSummary = asyncHandler(async (request: Request, respon
   const orgId = new mongoose.Types.ObjectId(auth.organizationId);
   const projectId = new mongoose.Types.ObjectId(String(request.params.projectId));
   const [codes, records] = await Promise.all([
-    CostCode.aggregate([{ $match: { organizationId: orgId, projectId, isActive: true } }, { $group: { _id: null, allocatedBudget: { $sum: "$budget" }, count: { $sum: 1 } } }]),
+    CostCode.aggregate([
+      { $match: { organizationId: orgId, projectId, isActive: true } },
+      { $group: { _id: "$currency", allocatedBudget: { $sum: "$budget" }, count: { $sum: 1 } } },
+    ]),
     CommercialRecord.aggregate([
       { $match: { organizationId: orgId, projectId, status: { $nin: ["rejected", "cancelled"] } } },
-      { $group: { _id: { type: "$type", status: "$status" }, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
+      { $group: { _id: { currency: "$currency", type: "$type", status: "$status" }, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
     ]),
   ]);
-  const totals = { purchaseOrders: 0, invoices: 0, paymentClaims: 0, paid: 0, pending: 0 };
-  for (const row of records) {
-    if (row._id.type === "purchase_order") totals.purchaseOrders += row.amount;
-    if (row._id.type === "invoice") totals.invoices += row.amount;
-    if (row._id.type === "payment_claim") totals.paymentClaims += row.amount;
-    if (row._id.status === "paid") totals.paid += row.amount;
-    else totals.pending += row.amount;
+
+  type CurrencyTotals = { currency: string; allocatedBudget: string; purchaseOrders: string; invoices: string; paymentClaims: string; paid: string; pending: string; costCodeCount: number };
+  const byCurrency = new Map<string, CurrencyTotals>();
+  const getTotals = (currency: string): CurrencyTotals => {
+    let totals = byCurrency.get(currency);
+    if (!totals) {
+      totals = { currency, allocatedBudget: "0", purchaseOrders: "0", invoices: "0", paymentClaims: "0", paid: "0", pending: "0", costCodeCount: 0 };
+      byCurrency.set(currency, totals);
+    }
+    return totals;
+  };
+
+  for (const row of codes) {
+    const totals = getTotals(String(row._id));
+    totals.allocatedBudget = asDecimalString(row.allocatedBudget);
+    totals.costCodeCount = row.count;
   }
-  response.json({ success: true, data: { projectBudget: project.budget, allocatedBudget: codes[0]?.allocatedBudget ?? 0, costCodeCount: codes[0]?.count ?? 0, ...totals, remainingBudget: project.budget - totals.purchaseOrders } });
+  for (const row of records) {
+    const totals = getTotals(String(row._id.currency));
+    const amount = asDecimalString(row.amount);
+    if (row._id.type === "purchase_order") totals.purchaseOrders = addDecimal(totals.purchaseOrders, amount);
+    if (row._id.type === "invoice") totals.invoices = addDecimal(totals.invoices, amount);
+    if (row._id.type === "payment_claim") totals.paymentClaims = addDecimal(totals.paymentClaims, amount);
+    if (row._id.status === "paid") totals.paid = addDecimal(totals.paid, amount);
+    else totals.pending = addDecimal(totals.pending, amount);
+  }
+
+  const projectCurrency = project.currency;
+  const projectTotals = getTotals(projectCurrency);
+  response.json({
+    success: true,
+    data: {
+      currency: projectCurrency,
+      projectBudget: asDecimalString(project.budget),
+      allocatedBudget: projectTotals.allocatedBudget,
+      costCodeCount: [...byCurrency.values()].reduce((sum, item) => sum + item.costCodeCount, 0),
+      purchaseOrders: projectTotals.purchaseOrders,
+      invoices: projectTotals.invoices,
+      paymentClaims: projectTotals.paymentClaims,
+      paid: projectTotals.paid,
+      pending: projectTotals.pending,
+      remainingBudget: subtractDecimal(asDecimalString(project.budget), projectTotals.purchaseOrders),
+      currencyBreakdown: [...byCurrency.values()].sort((a, b) => a.currency.localeCompare(b.currency)),
+    },
+  });
 });
