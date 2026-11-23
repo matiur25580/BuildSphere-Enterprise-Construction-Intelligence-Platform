@@ -19,6 +19,7 @@ const digest = (value: Buffer | string) => createHash("sha256").update(value).di
 const hmac = (key: Buffer | string, value: string) => createHmac("sha256", key).update(value).digest();
 const awsEncode = (value: string) => encodeURIComponent(value).replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
 const validStorageKey = (key: string) => /^[a-zA-Z0-9_-]{1,128}$/.test(key);
+const managedDocumentStorageKey = (key: string) => /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(key);
 type S3Config = { endpoint: URL; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; sessionToken?: string };
 const s3Config = (): S3Config => {
   const endpointValue = process.env.S3_ENDPOINT, region = process.env.S3_REGION, bucket = process.env.S3_BUCKET;
@@ -84,7 +85,7 @@ export const listDocumentObjects = async (cursor?: string, limit = 100): Promise
       if (!keyMatch || !modifiedMatch) continue;
       const key = decodeXml(keyMatch[1]);
       const lastModified = new Date(modifiedMatch[1]);
-      if (validStorageKey(key) && Number.isFinite(lastModified.getTime())) objects.push({ key, lastModified });
+      if (managedDocumentStorageKey(key) && Number.isFinite(lastModified.getTime())) objects.push({ key, lastModified });
     }
     const truncated = /<IsTruncated>true<\/IsTruncated>/i.test(xml);
     const tokenMatch = xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/);
@@ -100,7 +101,7 @@ export const listDocumentObjects = async (cursor?: string, limit = 100): Promise
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { objects: [] };
     throw new HttpError(503, "Private document storage could not be inventoried");
   }
-  const keys = entries.filter((entry) => entry.isFile() && validStorageKey(entry.name)).map((entry) => entry.name).sort().filter((key) => !cursor || key > cursor);
+  const keys = entries.filter((entry) => entry.isFile() && managedDocumentStorageKey(entry.name)).map((entry) => entry.name).sort().filter((key) => !cursor || key > cursor);
   const pageKeys = keys.slice(0, limit + 1);
   const hasMore = pageKeys.length > limit;
   const selected = pageKeys.slice(0, limit);
