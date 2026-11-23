@@ -1,5 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import type { JwtPayload } from "jsonwebtoken";
+import { User } from "../modules/users/user.model.js";
+import { Membership } from "../modules/organizations/membership.model.js";
 import { verifyAccessToken } from "../modules/auth/auth.service.js";
 
 declare global {
@@ -10,7 +12,7 @@ declare global {
   }
 }
 
-export const authenticate = (request: Request, response: Response, next: NextFunction) => {
+export const authenticate = async (request: Request, response: Response, next: NextFunction) => {
   const authorization = request.headers.authorization;
   if (!authorization?.startsWith("Bearer ")) {
     response.status(401).json({ success: false, message: "Authentication required" });
@@ -21,10 +23,25 @@ export const authenticate = (request: Request, response: Response, next: NextFun
     if (typeof decoded === "string") throw new Error("Invalid token payload");
     const payload = decoded as JwtPayload & { organizationId?: string; role?: string };
     if (!payload.sub || !payload.organizationId || !payload.role) throw new Error("Invalid token claims");
+
+    const [activeUser, activeMembership] = await Promise.all([
+      User.exists({ _id: payload.sub, status: "active" }),
+      Membership.exists({
+        userId: payload.sub,
+        organizationId: payload.organizationId,
+        role: payload.role,
+        status: "active",
+      }),
+    ]);
+    if (!activeUser || !activeMembership) {
+      response.status(401).json({ success: false, message: "Account or organization access is no longer active" });
+      return;
+    }
+
     request.auth = { userId: payload.sub, organizationId: payload.organizationId, role: payload.role };
     next();
   } catch {
-    response.status(401).json({ success: false, message: "Access token is invalid or expired" });
+    response.status(401).json({ success: false, message: "Access token is invalid, expired, or no longer authorized" });
   }
 };
 
