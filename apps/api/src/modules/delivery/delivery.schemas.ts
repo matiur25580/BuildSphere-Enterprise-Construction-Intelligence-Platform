@@ -17,3 +17,14 @@ const secureFileUrl = z.string().url().max(2048).refine((value) => value.startsW
 export const createDocumentSchema = z.object({ documentNo: reference, title: z.string().trim().min(2).max(180), category: z.string().trim().min(2).max(100), fileUrl: secureFileUrl.optional(), fileName: z.string().trim().min(1).max(240).optional(), checksum: z.string().max(128).optional(), notes: z.string().max(1000).optional() }).refine((value) => Boolean(value.fileUrl) === Boolean(value.fileName), "fileUrl and fileName must be provided together");
 export const addDocumentVersionSchema = z.object({ fileUrl: secureFileUrl, fileName: z.string().trim().min(1).max(240), checksum: z.string().max(128).optional(), notes: z.string().max(1000).optional() });
 export const documentApprovalSchema = z.object({ action: z.enum(["submitted", "approved", "rejected", "revision_requested"]), comment: z.string().max(2000).optional() });
+
+export const createDocumentUploadSchema = z.object({
+  fileName: z.string().trim().min(1).max(180).refine((value) => !/[\\u0000-\\u001f\\u007f]/.test(value), "File name contains invalid characters"),
+  contentType: z.enum(["application/pdf", "image/png", "image/jpeg", "image/webp", "application/ifc"]),
+  totalBytes: z.number().int().min(1).max(25 * 1024 * 1024),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+});
+export const documentUploadPartSchema = z.object({
+  partNumber: z.coerce.number().int().min(1).max(5),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+});
