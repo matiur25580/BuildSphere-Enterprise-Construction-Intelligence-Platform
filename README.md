@@ -127,6 +127,12 @@ Implemented: project-scoped quality inspections with checklist outcomes and revi
 
 Not yet implemented: binary uploads/object storage, malware scanning, immutable/tamper-evident audit ledger, notification/escalation, electronic signatures, offline workflows, regulatory incident submissions, and full integration-test infrastructure. Treat file URLs as references only; they are not proof of secure file access.
 
+## AI project intelligence milestone scope
+
+Implemented: explainable project risk signals across schedule, purchase-order commitments, overdue invoices, quality/NCR/CAPA, safety events, RFIs and submittals; project-currency checks; source-linked evidence register; and a tenant-scoped evidence query endpoint. The UI presents risk priorities, recommendations, evidence confidence labels and traceable records. See [Project Intelligence API](docs/api/project-intelligence.md).
+
+Important: the current intelligence engine uses deterministic heuristics and keyword retrieval. It does not call an LLM, train a predictive model, calculate a critical path, or provide calibrated risk probabilities. It is a decision-support aid based only on recorded data, not a substitute for project controls review. Snapshot reads are bounded and generated on demand.
+
 ## Authentication milestone scope
 
 Implemented: registration, login, password hashing, JWT access tokens, rotating refresh sessions, logout, authenticated profile, organization creation, owner membership, role middleware, and authentication rate limiting.
