@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
+import mongoose, { type ClientSession } from "mongoose";
 import { User } from "../users/user.model.js";
 import { Organization } from "../organizations/organization.model.js";
 import { Membership } from "../organizations/membership.model.js";
@@ -34,11 +34,12 @@ const issueAccessToken = (user: { id: string; email: string }, organizationId: s
     { subject: user.id, expiresIn: ACCESS_TTL_SECONDS },
   );
 
-const createRefreshSession = async (userId: string, metadata: ClientMetadata, familyId = randomUUID(), session?: mongoose.ClientSession) => {
+const createRefreshSession = async (userId: string, organizationId: string, metadata: ClientMetadata, familyId = randomUUID(), session?: ClientSession) => {
   const refreshToken = randomBytes(48).toString("base64url");
   const tokenHash = hashToken(refreshToken);
   await RefreshSession.create([{
     userId,
+    organizationId,
     familyId,
     tokenHash,
     expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
@@ -95,7 +96,7 @@ export const register = async (input: RegisterInput, metadata: ClientMetadata) =
       role: "owner",
       status: "active",
     });
-    const refreshToken = await createRefreshSession(user.id, metadata);
+    const refreshToken = await createRefreshSession(user.id, organization.id, metadata);
     const accessToken = issueAccessToken({ id: user.id, email: user.email }, organization.id, "owner");
     return {
       accessToken,
@@ -126,7 +127,7 @@ export const login = async (input: LoginInput, metadata: ClientMetadata) => {
   if (user.status !== "active") throw new HttpError(403, "This account is not active");
 
   const context = await getSessionContext(user.id);
-  const refreshToken = await createRefreshSession(user.id, metadata);
+  const refreshToken = await createRefreshSession(user.id, context.organizationId, metadata);
   user.lastLoginAt = new Date();
   await user.save();
   return {
@@ -172,7 +173,7 @@ const rotateSession = async (
 
     const user = await User.findOne({ _id: existing.userId, status: "active" }).session(transaction);
     if (!user) return;
-    const organization = await getSessionContext(user.id, targetOrganizationId);
+    const organization = await getSessionContext(user.id, targetOrganizationId ?? existing.organizationId?.toString());
     const familyId = existing.familyId || randomUUID();
     const nextRefreshToken = randomBytes(48).toString("base64url");
     const nextTokenHash = hashToken(nextRefreshToken);
@@ -180,9 +181,11 @@ const rotateSession = async (
     existing.revokedAt = new Date();
     existing.replacedByTokenHash = nextTokenHash;
     existing.familyId = familyId;
+    existing.organizationId = new mongoose.Types.ObjectId(organization.organizationId);
     await existing.save({ session: transaction });
     await RefreshSession.create([{
       userId: user._id,
+      organizationId: organization.organizationId,
       familyId,
       tokenHash: nextTokenHash,
       expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
