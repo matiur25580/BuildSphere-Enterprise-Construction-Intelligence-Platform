@@ -35,7 +35,7 @@ test("ClamAV readiness sends the null-terminated PING command", async () => {
   let received = Buffer.alloc(0);
   const server = createNetServer((socket) => {
     socket.on("data", (chunk) => {
-      received = Buffer.concat([received, chunk]);
+      received = Buffer.concat([received, Buffer.from(chunk)]);
       if (received.length >= 6) {
         socket.end(received.equals(Buffer.from("zPING\0", "binary")) ? "PONG\0" : "UNKNOWN COMMAND\0");
       }
