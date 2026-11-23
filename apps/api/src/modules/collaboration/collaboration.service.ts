@@ -111,15 +111,20 @@ export const processCollaborationOutboxBatch = async (batchSize = 25): Promise<n
     }, { new: true, sort: { createdAt: 1 } });
     if (!event) break;
     try {
-      const activity = await Activity.findOneAndUpdate(
-        { sourceEventId: event._id },
-        { $setOnInsert: {
-          organizationId: event.organizationId, projectId: event.projectId,
-          actorId: event.actorId, eventType: event.eventType, targetType: event.targetType,
-          targetId: event.targetId, summary: event.summary, sourceEventId: event._id,
-        } },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
-      );
+      let activity = await Activity.findOne({ sourceEventId: event._id });
+      if (!activity) {
+        try {
+          activity = await Activity.create({
+            organizationId: event.organizationId, projectId: event.projectId,
+            actorId: event.actorId, eventType: event.eventType, targetType: event.targetType,
+            targetId: event.targetId, summary: event.summary, sourceEventId: event._id,
+          });
+        } catch (error) {
+          if (!(error && typeof error === "object" && "code" in error && error.code === 11000)) throw error;
+          activity = await Activity.findOne({ sourceEventId: event._id });
+          if (!activity) throw error;
+        }
+      }
       const memberFilter: Record<string, unknown> = {
         organizationId: event.organizationId, projectId: event.projectId, status: "active",
         userId: { $ne: event.actorId },
