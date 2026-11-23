@@ -15,6 +15,7 @@ const documentUploadSessionSchema = new Schema({
   fileName: { type: String, required: true, maxlength: 180 },
   contentType: { type: String, enum: ["application/pdf", "image/png", "image/jpeg", "image/webp", "application/ifc"], required: true },
   totalBytes: { type: Number, required: true, min: 1, max: 26214400 },
+  expectedSha256: { type: String, match: /^[a-f0-9]{64}$/ },
   expectedParts: { type: Number, required: true, min: 1, max: 5 },
   parts: { type: [uploadPartSchema], default: [] },
   status: { type: String, enum: ["uploading", "completed", "aborted"], default: "uploading", index: true },
