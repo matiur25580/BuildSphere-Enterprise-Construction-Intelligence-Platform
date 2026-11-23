@@ -1,6 +1,6 @@
 # Collaboration, notifications and activity API
 
-All routes require a valid bearer access token. Organization identity and recipient identity are derived from the authenticated membership; request bodies cannot choose an actor or tenant.
+All routes require a valid bearer access token. Organization identity, actor identity and notification recipient identity are derived from the authenticated membership; request bodies cannot choose an actor or tenant.
 
 ## Notifications
 
@@ -10,16 +10,18 @@ All routes require a valid bearer access token. Organization identity and recipi
 
 ## Project activity
 
-- `GET /api/v1/projects/:projectId/collaboration/activity?limit=20&page=1` — append-only project event feed. Project ownership is verified against the authenticated organization. Actor display names are populated from the user record.
+- `GET /api/v1/projects/:projectId/collaboration/activity?limit=20&page=1` — append-only project event feed. Project ownership is verified against the authenticated organization. Owner/admin/project-manager roles may read the project feed; other users must have active project membership.
 
 ## Event coverage
 
-The API emits safe summaries for commercial record creation/status changes; quality inspection and NCR/CAPA creation/status changes; safety event reporting; RFI and submittal creation/submission/response/review; and document creation/approval changes. The event type is an application allowlist. Notification payloads contain summary, event type and a reference to the activity target, not document contents, private notes, or file URLs.
+The allowlisted events cover task assignment; commercial record creation/status changes; quality inspection and NCR/CAPA creation/status changes; safety event reporting/status changes; RFI and submittal creation/submission/response/review; and document creation/version additions/approval decisions. The event actor is the authenticated user. Notification summaries are intentionally concise and exclude document contents, file URLs, reviewer comments, incident narratives and private notes.
 
-Notifications are fanned out to active organization memberships except the actor. There is no per-project membership model yet, so this is organization-level visibility for projects within that tenant.
+Notifications are delivered to active project members, excluding the actor. Explicit assignment recipients are intersected with active project membership. Project roster administration and assignment validation are documented in [Project membership and outbox](project-membership-and-outbox.md).
 
 ## Delivery semantics and limitations
 
-The event is recorded after the underlying domain mutation. The current safe publisher logs failures rather than returning a false failure after the domain write has committed. This is not transactional: a database outage between the domain write and activity/notification persistence can lose an event. A MongoDB transactional outbox with retries and idempotency is needed for guaranteed delivery. Socket.IO is not enabled; clients refresh the persisted inbox. Activity records are append-only at the application API level but not protected by a tamper-evident ledger.
+Events are enqueued after the underlying domain mutation. The polling worker claims events with atomic leases and unique fencing tokens; a worker whose lease has been taken over cannot update the newer worker's delivery/retry state. Activity and recipient notification upserts are idempotent. Failures retry with exponential backoff for up to eight attempts.
 
-Unit tests cover tenant/recipient scope construction and event allowlisting. They do not replace MongoDB-backed cross-tenant endpoint integration tests.
+This is not yet a transactional outbox: a process/database failure between a domain write and the subsequent enqueue can still omit an event. The enqueue helper is best-effort so a committed business mutation is not reported as failed solely because notification enqueue failed. A MongoDB transaction spanning each domain mutation and its outbox insert is required to close that gap. Failed-event operator replay, full HTTP/JWT authorization integration tests, and Socket.IO delivery remain follow-up work.
+
+CI runs MongoDB-backed tests for tenant/project/recipient filtering, notification ownership and stale worker fencing, plus unit tests for scopes, allowlisted events and retry/fencing policy. These tests do not replace full end-to-end authorization tests. Activity records are append-only at the application API level, not a tamper-evident ledger.
