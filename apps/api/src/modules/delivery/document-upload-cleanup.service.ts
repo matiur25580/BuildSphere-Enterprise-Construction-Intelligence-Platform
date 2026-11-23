@@ -1,10 +1,16 @@
+import { randomUUID } from "node:crypto";
 import { DocumentAsset } from "./document-asset.model.js";
 import { DocumentUploadSession } from "./document-upload-session.model.js";
-import { deleteDocumentObject } from "./document-storage.js";
+import { DocumentStorageInventoryState } from "./document-storage-inventory-state.model.js";
+import { deleteDocumentObject, listDocumentObjects } from "./document-storage.js";
 
 const BATCH_SIZE = 50;
 const COMPLETING_GRACE_MS = 60 * 60 * 1000;
 const CLEANUP_RETRY_MS = 15 * 60 * 1000;
+const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
+const INVENTORY_PAGE_SIZE = 100;
+const INVENTORY_STATE_ID = "document-storage-inventory";
+const INVENTORY_LEASE_MS = 30 * 60 * 1000;
 
 export type UploadCleanupResult = { examined: number; cleaned: number; retained: number };
 
@@ -53,6 +59,64 @@ export const reconcileExpiredDocumentUploads = async (now = new Date()): Promise
   return { examined: candidates.length, cleaned, retained };
 };
 
+
+export type StorageInventoryResult = { examined: number; deleted: number; retained: number; recent: number };
+
+export const reconcileOrphanDocumentObjects = async (now = new Date()): Promise<StorageInventoryResult> => {
+  const empty: StorageInventoryResult = { examined: 0, deleted: 0, retained: 0, recent: 0 };
+  try {
+    await DocumentStorageInventoryState.updateOne(
+      { _id: INVENTORY_STATE_ID },
+      { $setOnInsert: { leaseUntil: new Date(0) } },
+      { upsert: true },
+    );
+  } catch (error) {
+    if ((error as { code?: number }).code !== 11000) throw error;
+  }
+  const leaseToken = randomUUID();
+  const lease = await DocumentStorageInventoryState.findOneAndUpdate(
+    { _id: INVENTORY_STATE_ID, $or: [{ leaseUntil: { $exists: false } }, { leaseUntil: { $lte: now } }] },
+    { $set: { leaseToken, leaseUntil: new Date(now.getTime() + INVENTORY_LEASE_MS) } },
+    { new: true },
+  ).lean();
+  if (!lease) return empty;
+
+  try {
+    const page = await listDocumentObjects(lease.cursor ?? undefined, INVENTORY_PAGE_SIZE);
+    const olderThan = new Date(now.getTime() - ORPHAN_GRACE_MS);
+    const result: StorageInventoryResult = { examined: page.objects.length, deleted: 0, retained: 0, recent: 0 };
+    for (const object of page.objects) {
+      if (object.lastModified > olderThan) { result.recent += 1; continue; }
+      const [asset, uploadSession] = await Promise.all([
+        DocumentAsset.exists({ storageKey: object.key }),
+        DocumentUploadSession.exists({ $or: [{ finalStorageKey: object.key }, { "parts.storageKey": object.key }] }),
+      ]);
+      if (asset || uploadSession) { result.retained += 1; continue; }
+      try {
+        await deleteDocumentObject(object.key);
+        result.deleted += 1;
+      } catch (error) {
+        result.retained += 1;
+        console.error("Orphan document object could not be deleted; it will be retried", { storageKey: object.key, error });
+      }
+    }
+    const cursorUpdate: Record<string, unknown> = { leaseUntil: new Date(0) };
+    const unsetUpdate: Record<string, unknown> = { leaseToken: 1 };
+    if (page.nextCursor) cursorUpdate.cursor = page.nextCursor;
+    else unsetUpdate.cursor = 1;
+    await DocumentStorageInventoryState.updateOne(
+      { _id: INVENTORY_STATE_ID, leaseToken },
+      { $set: cursorUpdate, $unset: unsetUpdate },
+    );
+    return result;
+  } finally {
+    await DocumentStorageInventoryState.updateOne(
+      { _id: INVENTORY_STATE_ID, leaseToken },
+      { $set: { leaseUntil: new Date(0) }, $unset: { leaseToken: 1 } },
+    ).catch(() => undefined);
+  }
+};
+
 export const startDocumentUploadCleanupWorker = () => {
   let running = false;
   const run = async () => {
@@ -60,6 +124,8 @@ export const startDocumentUploadCleanupWorker = () => {
     running = true;
     try {
       await reconcileExpiredDocumentUploads();
+      const inventory = await reconcileOrphanDocumentObjects();
+      if (inventory.deleted || inventory.retained) console.info("Document storage inventory reconciliation completed", inventory);
     } catch (error) {
       console.error("Document upload cleanup cycle failed", error);
     } finally {

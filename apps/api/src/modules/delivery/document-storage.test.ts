@@ -10,6 +10,7 @@ import {
   normalizeDocumentFile,
   putDocumentObject,
   readDocumentObject,
+  listDocumentObjects,
 } from "./document-storage.js";
 
 const envKeys = ["DOCUMENT_STORAGE_DRIVER", "DOCUMENT_STORAGE_DIR", "S3_ENDPOINT", "S3_REGION", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "S3_SESSION_TOKEN", "NODE_ENV"] as const;
@@ -54,6 +55,7 @@ test("S3 adapter signs private object requests and supports temporary credential
     requests.push({ method, url, authorization, token });
     const key = url.split("/").pop() ?? "";
     if (method === "PUT") { objects.set(key, Buffer.from(init?.body as Uint8Array<ArrayBuffer>)); return new Response(null, { status: 200 }); }
+    if (method === "GET" && new URL(url).searchParams.has("list-type")) { const token = new URL(url).searchParams.get("continuation-token"); const objectKey = token ? "00000000-0000-4000-8000-000000000789" : [...objects.keys()][0]; const contents = objectKey ? `<Contents><Key>${objectKey}</Key><LastModified>${new Date().toISOString()}</LastModified></Contents>` : ""; const page = token ? `<ListBucketResult>${contents}<IsTruncated>false</IsTruncated></ListBucketResult>` : `<ListBucketResult>${contents}<IsTruncated>true</IsTruncated><NextContinuationToken>next-page</NextContinuationToken></ListBucketResult>`; return new Response(page, { status: 200 }); }
     if (method === "GET") { const value = objects.get(key); return value ? new Response(Uint8Array.from(value), { status: 200 }) : new Response(null, { status: 404 }); }
     if (method === "DELETE") { objects.delete(key); return new Response(null, { status: 204 }); }
     if (method === "HEAD") return new Response(null, { status: 200 });
@@ -61,11 +63,18 @@ test("S3 adapter signs private object requests and supports temporary credential
   }) as typeof fetch;
   try {
     const payload = Buffer.from("%PDF-1.7 signed object");
-    await putDocumentObject("object_456", payload, "application/pdf");
-    assert.deepEqual(await readDocumentObject("object_456"), payload);
+    await putDocumentObject("00000000-0000-4000-8000-000000000456", payload, "application/pdf");
+    assert.deepEqual(await readDocumentObject("00000000-0000-4000-8000-000000000456"), payload);
+    const inventory = await listDocumentObjects();
+    assert.deepEqual(inventory.objects.map((object) => object.key), ["00000000-0000-4000-8000-000000000456"]);
+    assert.equal(inventory.objects[0].lastModified instanceof Date, true);
+    assert.equal(inventory.nextCursor, "next-page");
+    const nextInventory = await listDocumentObjects(inventory.nextCursor);
+    assert.deepEqual(nextInventory.objects.map((object) => object.key), ["00000000-0000-4000-8000-000000000789"]);
+    assert.equal(nextInventory.nextCursor, undefined);
     assert.equal(await checkDocumentStorageHealth(), true);
-    await deleteDocumentObject("object_456");
-    assert.equal(requests.length, 4);
+    await deleteDocumentObject("00000000-0000-4000-8000-000000000456");
+    assert.equal(requests.length, 6);
     for (const request of requests) {
       assert.match(request.authorization, /^AWS4-HMAC-SHA256 Credential=test-access\//);
       assert.equal(request.token, "temporary-session-token");
@@ -73,6 +82,25 @@ test("S3 adapter signs private object requests and supports temporary credential
     }
   } finally {
     globalThis.fetch = originalFetch;
+    restoreEnv();
+  }
+});
+
+test("filesystem inventory returns bounded, ordered private object pages", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "buildsphere-inventory-"));
+  try {
+    process.env.DOCUMENT_STORAGE_DRIVER = "filesystem";
+    process.env.DOCUMENT_STORAGE_DIR = directory;
+    await putDocumentObject("00000000-0000-4000-8000-000000000001", Buffer.from("a"), "application/octet-stream");
+    await putDocumentObject("00000000-0000-4000-8000-000000000002", Buffer.from("b"), "application/octet-stream");
+    const first = await listDocumentObjects(undefined, 1);
+    assert.deepEqual(first.objects.map((object) => object.key), ["00000000-0000-4000-8000-000000000001"]);
+    assert.equal(first.nextCursor, "00000000-0000-4000-8000-000000000001");
+    const second = await listDocumentObjects(first.nextCursor, 1);
+    assert.deepEqual(second.objects.map((object) => object.key), ["00000000-0000-4000-8000-000000000002"]);
+    assert.equal(second.nextCursor, undefined);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
     restoreEnv();
   }
 });
