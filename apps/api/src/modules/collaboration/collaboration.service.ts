@@ -40,7 +40,7 @@ export const publishProjectEvent = async (input: ProjectEventInput, session?: Cl
     eventType: input.eventType,
     targetType: input.targetType,
     targetId: input.targetId,
-    summary: input.summary.replace(/[\\u0000-\\u001f\\u007f]/g, " ").replace(/\\s+/g, " ").trim().slice(0, 240),
+    summary: input.summary.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 240),
     recipientIds: (input.recipientIds ?? []).map((id) => new mongoose.Types.ObjectId(id)),
     status: "pending",
     nextAttemptAt: new Date(),
