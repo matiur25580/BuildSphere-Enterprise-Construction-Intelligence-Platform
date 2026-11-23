@@ -119,6 +119,10 @@ test("private document upload and download enforce scan, tenant and project-memb
   assert.equal((await upload(viewerToken)).status, 403);
   assert.equal((await upload(ownerToken, Buffer.from("not a PDF"))).status, 415);
   assert.equal((await upload(ownerToken, Buffer.from("%PDF-1.7\\nEICAR test signature\\n%%EOF"))).status, 422);
+  const scannerPort = process.env.CLAMD_PORT;
+  process.env.CLAMD_PORT = "1";
+  assert.equal((await upload(ownerToken)).status, 503);
+  process.env.CLAMD_PORT = scannerPort;
   const saved = await ProjectDocument.findById(document._id).lean();
   assert.equal(saved?.currentVersion, 1);
   assert.equal(saved?.versions[0]?.fileName, "foundation-plan.pdf");
