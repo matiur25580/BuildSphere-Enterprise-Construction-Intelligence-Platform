@@ -187,13 +187,13 @@ export const uploadDocumentPart = asyncHandler(async (request: Request, response
   const storageKey = `part_${randomUUID()}`;
   await putDocumentObject(storageKey, request.body, "application/octet-stream");
   const updated = await DocumentUploadSession.findOneAndUpdate(
-    { _id: session._id, ...scope, createdBy: auth.userId, status: "uploading", expiresAt: { $gt: new Date() }, "parts.partNumber": { $ne: input.partNumber } },
+    { _id: session._id, ...scope, documentId, createdBy: auth.userId, status: "uploading", expiresAt: { $gt: new Date() }, "parts.partNumber": { $ne: input.partNumber } },
     { $push: { parts: { partNumber: input.partNumber, storageKey, byteSize: request.body.length, sha256: actualSha256 } } },
     { new: true },
   );
   if (!updated) {
     await deleteDocumentObject(storageKey).catch(() => undefined);
-    const latest = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, createdBy: auth.userId, status: "uploading" }).lean();
+    const latest = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, documentId, createdBy: auth.userId, status: "uploading" }).lean();
     const raced = latest?.parts.find((part) => part.partNumber === input.partNumber);
     if (raced?.sha256 === actualSha256 && raced.byteSize === request.body.length) { response.json({ success: true, data: { partNumber: input.partNumber, received: true, idempotent: true } }); return; }
     throw new HttpError(409, "Upload session changed; retry the part");
@@ -227,7 +227,7 @@ export const completeDocumentUpload = asyncHandler(async (request: Request, resp
   const normalized = normalizeDocumentFile(combined, encodeURIComponent(session.fileName), session.contentType);
   await scanDocumentWithClamAv(normalized.buffer);
   const storageKey = randomUUID();
-  const lockedSession = await DocumentUploadSession.findOneAndUpdate({ _id: session._id, ...scope, createdBy: auth.userId, status: "uploading", expiresAt: { $gt: new Date() } }, { $set: { status: "completing" } }, { new: true });
+  const lockedSession = await DocumentUploadSession.findOneAndUpdate({ _id: session._id, ...scope, documentId, createdBy: auth.userId, status: "uploading", expiresAt: { $gt: new Date() } }, { $set: { status: "completing" } }, { new: true });
   if (!lockedSession) throw new HttpError(409, "Upload session is already being completed or has changed");
   try {
     await putDocumentObject(storageKey, normalized.buffer, normalized.contentType);
@@ -253,11 +253,11 @@ export const completeDocumentUpload = asyncHandler(async (request: Request, resp
       return item;
     });
     await Promise.all(parts.map((part) => deleteDocumentObject(part.storageKey).catch(() => undefined)));
-    await DocumentUploadSession.deleteOne({ _id: session._id, ...scope, createdBy: auth.userId });
+    await DocumentUploadSession.deleteOne({ _id: session._id, ...scope, documentId, createdBy: auth.userId });
     response.status(201).json({ success: true, data: result, asset: { id: String(assetId), fileName: normalized.fileName, contentType: normalized.contentType, byteSize: normalized.buffer.length, sha256, scanStatus: "clean" } });
   } catch (error) {
     await deleteDocumentObject(storageKey).catch(() => undefined);
-    await DocumentUploadSession.updateOne({ _id: session._id, ...scope, createdBy: auth.userId, status: "completing" }, { $set: { status: "uploading" } }).catch(() => undefined);
+    await DocumentUploadSession.updateOne({ _id: session._id, ...scope, documentId, createdBy: auth.userId, status: "completing" }, { $set: { status: "uploading" } }).catch(() => undefined);
     throw error;
   }
 });
@@ -272,7 +272,7 @@ export const abortDocumentUpload = asyncHandler(async (request: Request, respons
   const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, documentId, createdBy: auth.userId, status: "uploading" });
   if (!session) throw new HttpError(404, "Upload session not found");
   await Promise.all(session.parts.map((part) => deleteDocumentObject(part.storageKey).catch(() => undefined)));
-  await DocumentUploadSession.deleteOne({ _id: session._id, ...scope, createdBy: auth.userId });
+  await DocumentUploadSession.deleteOne({ _id: session._id, ...scope, documentId, createdBy: auth.userId });
   response.status(204).end();
 });
 
