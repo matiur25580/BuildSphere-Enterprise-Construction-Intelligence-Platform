@@ -72,5 +72,25 @@ export const scanDocumentWithClamAv = async (buffer: Buffer): Promise<void> => {
   });
 };
 
+export const checkClamAvHealth = async (): Promise<boolean> => {
+  const host = process.env.CLAMD_HOST;
+  const port = Number(process.env.CLAMD_PORT ?? 3310);
+  if (!host || !Number.isInteger(port) || port < 1 || port > 65535) return false;
+  return await new Promise<boolean>((resolve) => {
+    const socket = createConnection({ host, port });
+    let settled = false;
+    const finish = (healthy: boolean) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(healthy);
+    };
+    socket.setTimeout(2_000, () => finish(false));
+    socket.on("error", () => finish(false));
+    socket.on("data", (chunk: Buffer) => finish(chunk.toString("utf8").includes("PONG")));
+    socket.on("connect", () => socket.write(Buffer.from("zPING\0", "binary")));
+  });
+};
+
 export const documentStorageDirectory = () => process.env.DOCUMENT_STORAGE_DIR ?? "/var/lib/buildsphere/documents";
 export const maxDocumentFileBytes = MAX_FILE_BYTES;

@@ -42,12 +42,19 @@ form input::placeholder { color: #64748b; }
 .role-pill { border-radius: 99px; padding: 5px 10px; background: #1d443d; color: #91e3cc; font-size: 10px; text-transform: uppercase; letter-spacing: .8px; }
 .welcome-panel .fine-print { margin-top: 22px; }
 .loading { margin: auto; color: #9fb0c5; }
-@media (max-width: 850px) { .auth-shell { grid-template-columns: 1fr; } .auth-aside { min-height: 260px; padding: 24px; } .aside-copy { padding: 50px 0 20px; } .aside-copy h1 { font-size: 42px; } .aside-foot { display: none; } .auth-main { padding: 48px 24px; } }
+@media (max-width: 850px) { .header-actions { gap: 9px; } .org-switcher-label { display: none; } .org-switcher { max-width: 42vw; } .auth-shell { grid-template-columns: 1fr; } .auth-aside { min-height: 260px; padding: 24px; } .aside-copy { padding: 50px 0 20px; } .aside-copy h1 { font-size: 42px; } .aside-foot { display: none; } .auth-main { padding: 48px 24px; } }
 
 
 /* Project portfolio milestone */
 .header-actions { display: flex; align-items: center; gap: 18px; }
 .org-name { color: #91a0b4; font-size: 12px; }
+.org-switcher-label { color: #718096; font-size: 9px; font-weight: 700; letter-spacing: 1.1px; }
+.org-switcher { max-width: min(260px, 34vw); padding: 9px 32px 9px 11px; border: 1px solid #34445a; border-radius: 7px; background: #111c2b; color: #dce7ef; font: 500 11px "DM Sans",sans-serif; }
+.org-switcher:focus { outline: none; border-color: #42b99d; box-shadow: 0 0 0 3px rgba(66,185,157,.12); }
+.org-switcher:disabled { opacity: .85; cursor: default; }
+.org-switcher option { background: #111c2b; color: #edf2f7; }
+.org-switching { color: #66d2b4; font-size: 10px; white-space: nowrap; }
+.organization-switch-error { max-width: 1180px; margin: 12px auto 0; }
 .dashboard { max-width: 1180px; margin: 54px auto 80px; }
 .dashboard-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 30px; }
 .dashboard-heading h1 { margin: 12px 0 5px; font: 800 clamp(28px,4vw,42px) "Manrope",sans-serif; letter-spacing: -1.5px; }

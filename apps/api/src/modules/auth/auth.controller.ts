@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { asyncHandler } from "../../common/async-handler.js";
 import { HttpError } from "../../common/http-error.js";
-import { loginSchema, registerSchema } from "./auth.schemas.js";
+import { loginSchema, registerSchema, switchOrganizationSchema } from "./auth.schemas.js";
 import * as authService from "./auth.service.js";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -56,6 +56,31 @@ export const refresh = asyncHandler(async (request, response) => {
   response.status(200).json({ success: true, data: { accessToken: result.accessToken } });
 });
 
+export const switchOrganization = asyncHandler(async (request, response) => {
+  if (!request.auth) throw new HttpError(401, "Authentication required");
+  const parsed = switchOrganizationSchema.safeParse(request.body);
+  if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? "Invalid organization selection");
+  const token = request.cookies?.[refreshCookieName] as string | undefined;
+  if (!token) throw new HttpError(401, "Refresh session is missing");
+  const result = await authService.switchOrganization(
+    request.auth.userId,
+    parsed.data.organizationId,
+    token,
+    metadata(request),
+  );
+  setRefreshCookie(response, result.refreshToken);
+  response.status(200).json({
+    success: true,
+    data: { accessToken: result.accessToken, organization: result.organization },
+  });
+});
+
+export const organizations = asyncHandler(async (request, response) => {
+  if (!request.auth) throw new HttpError(401, "Authentication required");
+  const data = await authService.listUserOrganizations(request.auth.userId);
+  response.status(200).json({ success: true, data });
+});
+
 export const logout = asyncHandler(async (request, response) => {
   const token = request.cookies?.[refreshCookieName] as string | undefined;
   await authService.logout(token);
@@ -65,6 +90,6 @@ export const logout = asyncHandler(async (request, response) => {
 
 export const me = asyncHandler(async (request, response) => {
   if (!request.auth) throw new HttpError(401, "Authentication required");
-  const data = await authService.getCurrentUser(request.auth.userId);
+  const data = await authService.getCurrentUser(request.auth.userId, request.auth.organizationId);
   response.status(200).json({ success: true, data });
 });

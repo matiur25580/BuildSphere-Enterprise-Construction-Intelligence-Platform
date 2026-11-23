@@ -12,5 +12,9 @@ export const loginSchema = z.object({
   password: z.string().min(1).max(128),
 });
 
+export const switchOrganizationSchema = z.object({
+  organizationId: z.string().min(1).max(64),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
