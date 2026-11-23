@@ -103,7 +103,19 @@ See [Authentication API](docs/api/authentication.md) and [Authentication Securit
 7. AI project intelligence and evidence-backed insights.
 8. Security hardening, automated testing, and deployment.
 
-## Project portfolio milestone scope\n\nImplemented: organization-scoped project creation/list/detail/update, project status and budget metadata, WBS summary/task/milestone records, parent summary links, predecessor references, work-item progress/status, project date validation, and a responsive portfolio dashboard with project creation. All project reads and writes derive organization scope from the authenticated session. See [Project Portfolio API](docs/api/projects.md).\n\nNot yet implemented: full Gantt rendering, critical-path calculation, dependency-cycle detection, resource assignment entities, and schedule baselining.\n\n## Authentication milestone scope
+## Project portfolio milestone scope
+
+Implemented: organization-scoped project creation/list/detail/update, project status and budget metadata, WBS summary/task/milestone records, parent summary links, predecessor references, work-item progress/status, project date validation, and a responsive portfolio dashboard with project creation. All project reads and writes derive organization scope from the authenticated session. See [Project Portfolio API](docs/api/projects.md).
+
+Not yet implemented: full Gantt rendering, critical-path calculation, dependency-cycle detection, resource assignment entities, and schedule baselining.
+
+## Commercial management milestone scope
+
+Implemented: project cost codes and allocated budgets; purchase-order, invoice, and payment-claim records; cost-code linkage; record submission, approval, rejection, and payment status transitions; project commercial summaries; and a responsive commercial workspace.
+
+This is an operational register, not a statutory accounting ledger. Decimal precision, immutable journals, tax, retention, partial-payment reconciliation, and audit events remain required before production financial use. See [Commercial Management API](docs/api/commercial-management.md).
+
+## Authentication milestone scope
 
 Implemented: registration, login, password hashing, JWT access tokens, rotating refresh sessions, logout, authenticated profile, organization creation, owner membership, role middleware, and authentication rate limiting.
 
