@@ -140,3 +140,10 @@ Implemented: registration, login, password hashing, JWT access tokens, rotating 
 Not yet implemented: email verification, password reset delivery, MFA, organization switching, and membership administration. Do not treat this milestone as production-ready security without the testing and controls described in the security documentation.
 
 See [Architecture Overview](docs/architecture/overview.md).
+
+
+## Security hardening and deployment milestone
+
+Implemented: exact CORS origin allowlisting (comma-separated `CLIENT_URL`), opt-in trusted-proxy configuration, UUID request correlation via `X-Request-Id`, a global API rate limit, 1 MB request-body limits, MongoDB readiness endpoint, security configuration unit tests, and a multi-stage non-root API Docker image. See [Production Readiness](docs/security/production-readiness.md).
+
+The readiness endpoint is `GET /api/v1/ready`; liveness remains `GET /api/v1/health`. This repository milestone does not provision hosting or prove production readiness. MongoDB-backed cross-tenant integration tests, external security scanning, deployment secrets, telemetry export, and immutable audit storage remain outstanding.
