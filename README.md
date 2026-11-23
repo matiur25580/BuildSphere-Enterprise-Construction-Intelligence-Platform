@@ -102,7 +102,7 @@ A sustainability concept for embodied carbon, material impacts, waste diversion 
 | Authentication | JWT access tokens, bcrypt password hashing, opaque rotating refresh sessions |
 | Security | Helmet, CORS allowlist, rate limiting, request IDs, tenant-scoped queries |
 | Collaboration | MongoDB outbox, leased worker, idempotent delivery, retry/backoff and fencing |
-| Document security | Private filesystem adapter, SHA-256 integrity, ClamAV INSTREAM scanning |
+| Document security | Local development adapter or S3-compatible private object storage, SHA-256 integrity, ClamAV INSTREAM scanning |
 | Quality gates | TypeScript builds, Node test runner, MongoDB replica-set integration tests, Docker image build |
 | Runtime | Multi-stage Docker image; API runs as non-root `node` |
 
@@ -174,7 +174,7 @@ Dockerfile             Production API container build
 - Append-only application-level upload/download audit events with actor, project, document, checksum and request ID.
 - Version upload, approval workflow and authenticated download UI.
 
-**Operational prerequisite:** uploads fail closed unless MongoDB transactions and ClamAV are available. Configure a durable private storage volume. The current adapter is a single-node/private POSIX filesystem implementation, not S3/GCS/Azure object storage. Multi-replica deployments need a shared secure filesystem or a distributed object-storage adapter.
+**Operational prerequisite:** uploads fail closed unless MongoDB transactions and ClamAV are available. Production must explicitly configure `DOCUMENT_STORAGE_PROVIDER=s3` with a private S3-compatible bucket; the local filesystem provider is for development and tests. The `/api/v1/ready` endpoint checks MongoDB and document-storage availability, and production startup fails if storage configuration is missing or invalid. Existing local assets must be migrated to S3 with `npm run migrate:document-files-to-s3` (dry run) and `npm run migrate:document-files-to-s3 -- --apply` before switching providers. See [document object-storage operations](docs/operations/document-object-storage.md).
 
 ### 4.7 BIM model coordination and CDE integration
 - Register malware-scanned IFC document versions as project BIM models, preserving source document, asset, revision, schema declaration and SHA-256 checksum.
