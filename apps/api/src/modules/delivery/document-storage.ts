@@ -1,4 +1,5 @@
 import { createConnection } from "node:net";
+import { createHash } from "node:crypto";
 import { basename, extname, join } from "node:path";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
@@ -71,7 +72,7 @@ const client = () => {
 export const storeDocumentFile = async (key: string, data: Buffer, contentType: string): Promise<void> => {
   const mode = provider();
   if (mode === "local") { const directory = documentStorageDirectory(); await mkdir(directory, { recursive: true, mode: 0o700 }); await writeFile(join(directory, key), data, { flag: "wx", mode: 0o600 }); return; }
-  if (mode === "s3") { await client().send(new PutObjectCommand({ Bucket: bucket(), Key: key, Body: data, ContentLength: data.length, ContentType: contentType, ServerSideEncryption: "AES256" })); return; }
+  if (mode === "s3") { const sha256 = createHash("sha256").update(data).digest("hex"); await client().send(new PutObjectCommand({ Bucket: bucket(), Key: key, Body: data, ContentLength: data.length, ContentType: contentType, ServerSideEncryption: "AES256", Metadata: { sha256 } })); return; }
   throw new HttpError(503, "DOCUMENT_STORAGE_PROVIDER must be local or s3");
 };
 export const readDocumentFile = async (key: string): Promise<Buffer> => {
