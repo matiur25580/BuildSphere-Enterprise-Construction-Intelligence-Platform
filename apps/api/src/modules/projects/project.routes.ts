@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { authenticate, requireRoles } from "../../middleware/authenticate.js";
 import * as controller from "./project.controller.js";
+import projectMembershipRoutes from "./project-membership.routes.js";
 
 const router = Router();
 router.use(authenticate);
+router.use("/:projectId/members", projectMembershipRoutes);
 router.get("/", controller.listProjects);
 router.post("/", requireRoles("owner", "admin", "project_manager"), controller.createProject);
 router.get("/:projectId", controller.getProject);
