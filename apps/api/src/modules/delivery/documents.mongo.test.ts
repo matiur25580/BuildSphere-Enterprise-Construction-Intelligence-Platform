@@ -33,6 +33,7 @@ before(async () => {
   process.env.DOCUMENT_STORAGE_DIR = storageDirectory;
   clamdServer = createServer((socket) => {
     let data = Buffer.alloc(0);
+    let scanned = Buffer.alloc(0);
     let commandRead = false;
     socket.on("data", (chunk) => {
       data = Buffer.concat([data, chunk]);
@@ -116,6 +117,7 @@ test("private document upload and download enforce scan, tenant and project-memb
   assert.equal((await upload(ownerToken)).status, 201);
   assert.equal((await upload(viewerToken)).status, 403);
   assert.equal((await upload(ownerToken, Buffer.from("not a PDF"))).status, 415);
+  assert.equal((await upload(ownerToken, Buffer.from("%PDF-1.7\\nEICAR test signature\\n%%EOF"))).status, 422);
   const saved = await ProjectDocument.findById(document._id).lean();
   assert.equal(saved?.currentVersion, 1);
   assert.equal(saved?.versions[0]?.fileName, "foundation-plan.pdf");
