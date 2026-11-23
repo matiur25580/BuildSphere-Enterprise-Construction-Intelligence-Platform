@@ -3,6 +3,7 @@ import { CommercialWorkspace } from "./CommercialWorkspace.js";
 import { FieldWorkspace } from "./FieldWorkspace.js";
 import { DeliveryWorkspace } from "./DeliveryWorkspace.js";
 import { IntelligenceWorkspace } from "./IntelligenceWorkspace.js";
+import { CollaborationWorkspace } from "./CollaborationWorkspace.js";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api/v1";
 type Session = {
@@ -48,6 +49,7 @@ function App() {
   const [fieldProject, setFieldProject] = useState<Project | null>(null);
   const [deliveryProject, setDeliveryProject] = useState<Project | null>(null);
   const [intelligenceProject, setIntelligenceProject] = useState<Project | null>(null);
+  const [collaborationOpen, setCollaborationOpen] = useState(false);
   const [projectForm, setProjectForm] = useState({
     code: "", name: "", clientName: "", location: "",
     startDate: new Date().toISOString().slice(0, 10),
@@ -153,7 +155,7 @@ function App() {
         <section className="dashboard">
           <div className="dashboard-heading">
             <div><p className="eyebrow">PROJECT DELIVERY / OVERVIEW</p><h1>Good to see you, {session.name.split(" ")[0]}.</h1><p className="muted">Your organization's project portfolio at a glance.</p></div>
-            <button className="primary-button" onClick={() => { setProjectError(""); setShowCreate((value) => !value); }}>＋ New project</button>
+            <div className="dashboard-actions"><button className="ghost-button" onClick={() => setCollaborationOpen(true)}>Team inbox & activity</button><button className="primary-button" onClick={() => { setProjectError(""); setShowCreate((value) => !value); }}>＋ New project</button></div>
           </div>
           <div className="metric-grid">
             <article className="metric-card"><span>PORTFOLIO</span><strong>{projects.length}</strong><small>Projects in workspace</small></article>
@@ -192,6 +194,7 @@ function App() {
           {fieldProject && accessToken && <FieldWorkspace project={fieldProject} token={accessToken} onClose={() => setFieldProject(null)} />}
           {deliveryProject && accessToken && <DeliveryWorkspace project={deliveryProject} token={accessToken} onClose={() => setDeliveryProject(null)} />}
           {intelligenceProject && accessToken && <IntelligenceWorkspace project={intelligenceProject} token={accessToken} onClose={() => setIntelligenceProject(null)} />}
+          {collaborationOpen && accessToken && <CollaborationWorkspace projects={projects} token={accessToken} onClose={() => setCollaborationOpen(false)} />}
         </section>
       </main>
     );
