@@ -2,7 +2,7 @@ name: BuildSphere CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/controlled-document-purge-workflow]
   pull_request:
     branches: [main, feat/production-auth-readiness-hardening, feat/distributed-document-storage, feat/resumable-document-uploads, feat/document-retention-legal-holds]
 
