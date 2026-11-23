@@ -3,7 +3,6 @@ import { z } from "zod";
 import { Project } from "../projects/project.model.js";
 import { WorkItem } from "../projects/work-item.model.js";
 import { CommercialRecord } from "../commercial/commercial-record.model.js";
-import { CostCode } from "../commercial/cost-code.model.js";
 import { DailyReport } from "../field/daily-report.model.js";
 import { Inspection } from "../delivery/inspection.model.js";
 import { Ncr, Capa } from "../delivery/ncr.model.js";
@@ -25,8 +24,8 @@ export async function buildProjectIntelligence(organizationId: string, projectId
   const project = await Project.findOne({ _id: projectId, organizationId }).lean();
   if (!project) throw new Error("PROJECT_NOT_FOUND");
   const scope = { organizationId: new mongoose.Types.ObjectId(organizationId), projectId: new mongoose.Types.ObjectId(projectId) };
-  const [workItems, commercial, costCodes, reports, inspections, ncrs, capas, safety, rfis, submittals, documents] = await Promise.all([
-    WorkItem.find(scope).sort({ endDate: 1 }).limit(500).lean(), CommercialRecord.find(scope).sort({ dueDate: 1 }).limit(500).lean(), CostCode.find(scope).limit(500).lean(), DailyReport.find(scope).sort({ reportDate: -1 }).limit(100).lean(), Inspection.find(scope).sort({ inspectionDate: -1 }).limit(200).lean(), Ncr.find(scope).sort({ createdAt: -1 }).limit(200).lean(), Capa.find(scope).sort({ dueDate: 1 }).limit(300).lean(), SafetyEvent.find(scope).sort({ occurredAt: -1 }).limit(200).lean(), Rfi.find(scope).sort({ dueDate: 1 }).limit(200).lean(), Submittal.find(scope).sort({ dueDate: 1 }).limit(200).lean(), ProjectDocument.find(scope).sort({ updatedAt: -1 }).limit(200).lean(),
+  const [workItems, commercial, reports, inspections, ncrs, capas, safety, rfis, submittals, documents] = await Promise.all([
+    WorkItem.find(scope).sort({ endDate: 1 }).limit(500).lean(), CommercialRecord.find(scope).sort({ dueDate: 1 }).limit(500).lean(), DailyReport.find(scope).sort({ reportDate: -1 }).limit(100).lean(), Inspection.find(scope).sort({ inspectionDate: -1 }).limit(200).lean(), Ncr.find(scope).sort({ createdAt: -1 }).limit(200).lean(), Capa.find(scope).sort({ dueDate: 1 }).limit(300).lean(), SafetyEvent.find(scope).sort({ occurredAt: -1 }).limit(200).lean(), Rfi.find(scope).sort({ dueDate: 1 }).limit(200).lean(), Submittal.find(scope).sort({ dueDate: 1 }).limit(200).lean(), ProjectDocument.find(scope).sort({ updatedAt: -1 }).limit(200).lean(),
   ]);
   const now = new Date();
   const tasks = workItems.filter((item) => item.type !== "summary");
