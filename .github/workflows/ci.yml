@@ -2,9 +2,13 @@ name: BuildSphere CI
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
-    branches: [main]
+    branches: ["**"]
+
+concurrency:
+  group: buildsphere-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -40,6 +44,5 @@ jobs:
           OUTBOX_TRANSACTION_MODE: required
           JWT_ACCESS_SECRET: buildsphere-ci-secret-that-is-at-least-32-characters-long
           MONGODB_URI: mongodb://127.0.0.1:27017/buildsphere_ci?replicaSet=rs0
-
       - name: Build production API container
         run: docker build -t buildsphere-api:ci .
