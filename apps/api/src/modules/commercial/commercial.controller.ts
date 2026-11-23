@@ -19,7 +19,7 @@ const projectFor = async (projectId: string, organizationId: string) => {
 };
 
 const decimalUnits = (value: unknown): bigint => {
-  const match = String(value ?? "0").match(/^([+-]?)(\\d+)(?:\\.(\\d*))?(?:[eE]([+-]?\\d+))?$/);
+  const match = String(value ?? "0").match(/^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/);
   if (!match) throw new Error("Invalid Decimal128 value in commercial summary");
   const [, sign, whole, fraction = "", exponentText = "0"] = match;
   const digits = BigInt(`${whole}${fraction}`);
