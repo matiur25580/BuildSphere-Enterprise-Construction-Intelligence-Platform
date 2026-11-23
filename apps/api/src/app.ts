@@ -7,6 +7,7 @@ import authRoutes from "./modules/auth/auth.routes.js";
 import projectRoutes from "./modules/projects/project.routes.js";
 import commercialRoutes from "./modules/commercial/commercial.routes.js";
 import fieldRoutes from "./modules/field/field.routes.js";
+import deliveryRoutes from "./modules/delivery/delivery.routes.js";
 import { errorHandler } from "./middleware/error-handler.js";
 
 const app = express();
@@ -36,6 +37,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/projects", projectRoutes);
 app.use("/api/v1/projects/:projectId/commercial", commercialRoutes);
 app.use("/api/v1/projects/:projectId/field", fieldRoutes);
+app.use("/api/v1/projects/:projectId/delivery", deliveryRoutes);
 app.use(errorHandler);
 
 export default app;
