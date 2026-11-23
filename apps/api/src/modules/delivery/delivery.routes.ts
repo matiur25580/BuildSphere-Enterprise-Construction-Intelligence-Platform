@@ -1,6 +1,7 @@
 import express, { Router } from "express";
 import { authenticate, requireRoles } from "../../middleware/authenticate.js";
 import * as controller from "./delivery.controller.js";
+import * as governance from "./document-governance.controller.js";
 
 const router = Router({ mergeParams: true });
 const managers = requireRoles("owner", "admin", "project_manager");
@@ -37,4 +38,10 @@ router.post("/documents/:documentId/uploads/:uploadId/complete", managers, contr
 router.delete("/documents/:documentId/uploads/:uploadId", managers, controller.abortDocumentUpload);
 router.get("/documents/:documentId/files/:assetId/download", controller.downloadDocumentFile);
 router.patch("/documents/:documentId/approval", managers, controller.updateDocumentApproval);
+router.get("/document-governance/retention", governance.getDocumentRetentionPolicy);
+router.put("/document-governance/retention", managers, governance.updateDocumentRetentionPolicy);
+router.get("/document-governance/retention/evaluation", governance.evaluateDocumentRetention);
+router.get("/document-governance/legal-holds", governance.listDocumentLegalHolds);
+router.post("/documents/:documentId/legal-holds", managers, governance.placeDocumentLegalHold);
+router.post("/documents/:documentId/legal-holds/:holdId/release", managers, governance.releaseDocumentLegalHold);
 export default router;
