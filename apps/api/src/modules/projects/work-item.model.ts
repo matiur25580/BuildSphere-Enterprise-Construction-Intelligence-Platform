@@ -13,6 +13,7 @@ const workItemSchema = new Schema({
   endDate: { type: Date, required: true },
   progress: { type: Number, min: 0, max: 100, default: 0 },
   assignedTo: { type: String, trim: true, maxlength: 120, default: "" },
+  assignedUserId: { type: Schema.Types.ObjectId, ref: "User", default: null },
   predecessorIds: [{ type: Schema.Types.ObjectId, ref: "WorkItem" }],
 }, { timestamps: true });
 
