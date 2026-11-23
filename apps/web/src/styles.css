@@ -118,3 +118,27 @@ form input::placeholder { color: #64748b; }
 @media(max-width:480px) { .commercial-panel { padding:15px; }.commercial-metrics { grid-template-columns:1fr 1fr; }.commercial-metrics b { font-size:15px; }.record-row { align-items:flex-start; } }
 
 .record-action { padding:5px 8px; border:1px solid #386b5b; border-radius:5px; background:#17372f; color:#9ae3c8; font-size:9px; }.record-action:hover { background:#205143; }.reject-action { border-color:#70434a; background:#3a252d; color:#efb1b8; }
+
+/* Field operations and site reporting */
+.field-open { width:100%; margin-top:8px; padding:9px; border:1px solid #34516d; border-radius:6px; background:#172b40; color:#a8d1f1; font-size:10px; font-weight:700; }
+.field-open:hover { background:#203b55; }
+.field-panel { margin:42px 0 70px; padding:24px; border:1px solid #36536b; border-radius:12px; background:rgba(15,30,42,.97); }
+.field-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:22px 0 28px; }
+.field-metrics article { display:flex; flex-direction:column; gap:9px; padding:16px; border:1px solid #2b4050; border-radius:8px; background:#142437; }
+.field-metrics span { color:#8296a9; font-size:9px; font-weight:700; letter-spacing:1px; }.field-metrics b { color:#e3f2ec; font:700 22px Manrope,sans-serif; }
+.field-columns { display:grid; grid-template-columns:minmax(250px,.8fr) minmax(0,1.2fr); gap:16px; align-items:start; }
+.field-form { display:flex; flex-direction:column; gap:9px; padding:18px; border:1px solid #2b4050; border-radius:9px; background:#111f30; }
+.field-form h3,.field-subheading { margin:0 0 5px; color:#e5edf3; font:700 15px Manrope,sans-serif; }
+.field-form label { display:flex; flex-direction:column; gap:6px; margin:0; color:#adbdcc; font-size:10px; }
+.field-form input,.field-form select,.field-form textarea { width:100%; padding:10px; border:1px solid #2a3a50; border-radius:6px; background:#0b1725; color:#eaf0f5; font:11px 'DM Sans',sans-serif; color-scheme:dark; resize:vertical; }
+.field-form input:focus,.field-form select:focus,.field-form textarea:focus { outline:none; border-color:#42b99d; }
+.field-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.field-form .submit-button { margin-top:8px; }
+.field-subheading { margin:28px 0 12px; }
+.field-contractor { display:flex; flex-direction:column; gap:4px; padding:10px 0; border-top:1px solid #29394a; }.field-contractor b { color:#e4edf4; font-size:11px; }.field-contractor span { color:#8da0b3; font-size:9px; text-transform:capitalize; }
+.field-report-list { display:flex; flex-direction:column; gap:10px; }
+.field-report { padding:17px; border:1px solid #2a3b4d; border-radius:8px; background:#111f30; }
+.field-report-top { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; }.field-report-top div { display:flex; flex-direction:column; gap:5px; }.field-report-top b { color:#e4edf4; font-size:12px; text-transform:capitalize; }.field-report-top span,.field-report-meta { color:#8da0b3; font-size:9px; }.field-report-top strong { color:#70d9bd; font-size:12px; white-space:nowrap; }
+.field-report p { color:#bdcbd8; font-size:11px; line-height:1.7; }.field-report-meta { display:flex; flex-wrap:wrap; gap:14px; padding-top:10px; border-top:1px solid #29394a; }.field-note { margin-bottom:0; color:#aab9c7 !important; font-size:10px !important; }
+@media(max-width:900px) { .field-columns { grid-template-columns:1fr; }.field-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:480px) { .field-panel { padding:15px; }.field-metrics { grid-template-columns:1fr 1fr; }.field-form-grid { grid-template-columns:1fr; }.field-report-top { flex-direction:column; } }
