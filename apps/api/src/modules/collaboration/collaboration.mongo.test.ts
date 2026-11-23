@@ -134,17 +134,21 @@ test("outbox worker recovers expired leases and retries idempotently after parti
   const actorId = new mongoose.Types.ObjectId();
   const recipientId = new mongoose.Types.ObjectId();
   const targetId = new mongoose.Types.ObjectId();
-  await ProjectMembership.create({ organizationId, projectId, userId: recipientId, role: "contributor", status: "active", addedBy: actorId });
+  await ProjectMembership.create([
+    { organizationId, projectId, userId: recipientId, role: "contributor", status: "active", addedBy: actorId },
+    { organizationId, projectId, userId: actorId, role: "project_manager", status: "active", addedBy: actorId },
+  ]);
   const event = await CollaborationOutbox.create({
     organizationId, projectId, actorId, eventType: "tasks.assigned",
     targetType: "work_item", targetId, summary: "Assigned work item",
     status: "processing", attempts: 1, leaseToken: "crashed-worker",
     leaseExpiresAt: new Date(Date.now() - 1),
-    recipientIds: [recipientId],
+    recipientIds: [recipientId, actorId],
   });
   assert.equal(await processCollaborationOutboxBatch(1), 1);
   assert.equal(await Activity.countDocuments({ sourceEventId: event._id }), 1);
   assert.equal(await Notification.countDocuments({ activityId: { $in: await Activity.find({ sourceEventId: event._id }).distinct("_id") }, recipientId }), 1);
+  assert.equal(await Notification.countDocuments({ activityId: { $in: await Activity.find({ sourceEventId: event._id }).distinct("_id") }, recipientId: actorId }), 0);
   await CollaborationOutbox.updateOne({ _id: event._id }, { $set: { status: "pending", nextAttemptAt: new Date(0), leaseToken: null, leaseExpiresAt: null } });
   assert.equal(await processCollaborationOutboxBatch(1), 1);
   assert.equal(await Activity.countDocuments({ sourceEventId: event._id }), 1);
