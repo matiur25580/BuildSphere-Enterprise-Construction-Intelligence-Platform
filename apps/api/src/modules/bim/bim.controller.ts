@@ -19,8 +19,10 @@ const context = async (request: Request) => {
   const project = await Project.findOne({ _id: projectId, organizationId: request.auth.organizationId }).select("_id");
   if (!project) throw new HttpError(404, "Project not found");
   const member = await ProjectMembership.findOne({ ...scope, userId: request.auth.userId, status: "active" }).select("role").lean();
-  if (!member) throw new HttpError(403, "Active project membership is required");
-  return { auth: request.auth, scope, projectId, member };
+  if (!member && !["owner", "admin"].includes(request.auth.role)) {
+    throw new HttpError(403, "Active project membership is required");
+  }
+  return { auth: request.auth, scope, projectId, member: member ?? { role: "project_manager" as const } };
 };
 const requireManager = (authRole: string, projectRole: string) => {
   if (projectRole !== "project_manager" && !["owner", "admin"].includes(authRole)) throw new HttpError(403, "Project manager access is required");
