@@ -6,6 +6,7 @@ import helmet from "helmet";
 import mongoose from "mongoose";
 import { rateLimit } from "express-rate-limit";
 import authRoutes from "./modules/auth/auth.routes.js";
+import organizationRoutes from "./modules/organizations/membership.routes.js";
 import projectRoutes from "./modules/projects/project.routes.js";
 import commercialRoutes from "./modules/commercial/commercial.routes.js";
 import fieldRoutes from "./modules/field/field.routes.js";
@@ -71,6 +72,7 @@ app.get("/api/v1/ready", (_request, response) => {
 });
 
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/organization", organizationRoutes);
 app.use("/api/v1/projects", projectRoutes);
 app.use("/api/v1/projects/:projectId/commercial", commercialRoutes);
 app.use("/api/v1/projects/:projectId/field", fieldRoutes);
