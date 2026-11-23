@@ -13,6 +13,7 @@ type Session = {
   organization: { id: string; name: string; role: string };
 };
 type ApiResult<T> = { success: boolean; data?: T; message?: string };
+type OrganizationChoice = { id: string; name: string; slug: string; role: string };
 type Project = {
   _id: string; code: string; name: string; clientName: string; location: string;
   status: "planning" | "active" | "on_hold" | "completed" | "cancelled";
@@ -52,6 +53,9 @@ function App() {
   const [intelligenceProject, setIntelligenceProject] = useState<Project | null>(null);
   const [collaborationOpen, setCollaborationOpen] = useState(false);
   const [organizationOpen, setOrganizationOpen] = useState(false);
+  const [organizations, setOrganizations] = useState<OrganizationChoice[]>([]);
+  const [switchingOrganization, setSwitchingOrganization] = useState(false);
+  const [organizationSwitchError, setOrganizationSwitchError] = useState("");
   const [projectForm, setProjectForm] = useState({
     code: "", name: "", clientName: "", location: "",
     startDate: new Date().toISOString().slice(0, 10),
@@ -95,8 +99,15 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (accessToken) void loadProjects(accessToken);
-    else setProjects([]);
+    if (accessToken) {
+      void loadProjects(accessToken);
+      void apiRequest<OrganizationChoice[]>("/auth/organizations", { method: "GET" }, accessToken)
+        .then((result) => setOrganizations(result.data ?? []))
+        .catch((error) => setOrganizationSwitchError(error instanceof Error ? error.message : "Unable to load organizations"));
+    } else {
+      setProjects([]);
+      setOrganizations([]);
+    }
   }, [accessToken]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -115,6 +126,33 @@ function App() {
       setMessage(error instanceof Error ? error.message : "Unable to authenticate");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const switchOrganization = async (organizationId: string) => {
+    if (!accessToken || !organizationId || organizationId === session?.organization?.id || switchingOrganization) return;
+    setSwitchingOrganization(true);
+    setOrganizationSwitchError("");
+    try {
+      const result = await apiRequest<{ accessToken: string; organization: Session["organization"] }>(
+        "/auth/switch-organization",
+        { method: "POST", body: JSON.stringify({ organizationId }) },
+        accessToken,
+      );
+      if (!result.data) throw new Error("Organization switch did not return a new session");
+      setSession((current) => current ? { ...current, organization: result.data!.organization } : current);
+      setAccessToken(result.data.accessToken);
+      setCommercialProject(null);
+      setFieldProject(null);
+      setDeliveryProject(null);
+      setIntelligenceProject(null);
+      setCollaborationOpen(false);
+      setOrganizationOpen(false);
+      setShowCreate(false);
+    } catch (error) {
+      setOrganizationSwitchError(error instanceof Error ? error.message : "Unable to switch organization");
+    } finally {
+      setSwitchingOrganization(false);
     }
   };
 
@@ -152,7 +190,23 @@ function App() {
       <main className="app-shell">
         <header className="app-header">
           <a className="brand" href="/"><span className="brand-symbol">B</span>BuildSphere</a>
-          <div className="header-actions"><span className="org-name">{session.organization?.name}</span><button className="ghost-button" onClick={() => void signOut()}>Sign out</button></div>
+          <div className="header-actions">
+            <label className="org-switcher-label" htmlFor="organization-switcher">WORKSPACE</label>
+            <select
+              id="organization-switcher"
+              className="org-switcher"
+              aria-label="Switch organization"
+              value={session.organization?.id ?? ""}
+              disabled={switchingOrganization || organizations.length < 2}
+              onChange={(event) => void switchOrganization(event.target.value)}
+            >
+              {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name} · {organization.role}</option>)}
+              {organizations.length === 0 && <option value={session.organization?.id ?? ""}>{session.organization?.name ?? "Current organization"}</option>}
+            </select>
+            {switchingOrganization && <span className="org-switching">Switching…</span>}
+            <button className="ghost-button" onClick={() => void signOut()}>Sign out</button>
+          </div>
+          {organizationSwitchError && <p className="form-error organization-switch-error" role="alert">{organizationSwitchError}</p>}
         </header>
         <section className="dashboard">
           <div className="dashboard-heading">
