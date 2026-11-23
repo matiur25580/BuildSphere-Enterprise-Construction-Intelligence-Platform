@@ -13,4 +13,5 @@ const documentLegalHoldSchema = new Schema({
   releaseComment: { type: String, trim: true, maxlength: 2000, default: "" },
 }, { timestamps: true, versionKey: false });
 documentLegalHoldSchema.index({ organizationId: 1, projectId: 1, documentId: 1, status: 1 });
+documentLegalHoldSchema.index({ organizationId: 1, projectId: 1, documentId: 1 }, { unique: true, partialFilterExpression: { status: "active" } });
 export const DocumentLegalHold = model("DocumentLegalHold", documentLegalHoldSchema);
