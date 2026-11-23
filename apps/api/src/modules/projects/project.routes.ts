@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticate } from "../../middleware/authenticate.js";
+import { authenticate, requireRoles } from "../../middleware/authenticate.js";
 import { requireProjectAccess, requireProjectRoles } from "../../middleware/project-access.js";
 import * as controller from "./project.controller.js";
 import projectMembershipRoutes from "./project-membership.routes.js";
