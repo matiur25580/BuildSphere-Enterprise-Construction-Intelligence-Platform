@@ -39,8 +39,9 @@ test("register, restore session, create project, sign out and sign in", async ({
   await expect(projectCard).toContainText("E2E Client");
   await expect(page.locator(".metric-card").first()).toContainText("1");
 
-  // Confirm the persisted portfolio is restored after a full page navigation.
+  // Confirm both the refresh-cookie session and persisted portfolio are restored.
   await page.reload();
+  await expect(page.getByRole("heading", { name: "Good to see you, BuildSphere." })).toBeVisible();
   await expect(page.locator(".project-card").filter({ hasText: projectName })).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out" }).click();
