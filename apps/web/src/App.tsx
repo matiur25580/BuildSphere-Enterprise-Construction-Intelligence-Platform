@@ -4,6 +4,7 @@ import { FieldWorkspace } from "./FieldWorkspace.js";
 import { DeliveryWorkspace } from "./DeliveryWorkspace.js";
 import { IntelligenceWorkspace } from "./IntelligenceWorkspace.js";
 import { CollaborationWorkspace } from "./CollaborationWorkspace.js";
+import { OrganizationWorkspace } from "./OrganizationWorkspace.js";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api/v1";
 type Session = {
@@ -50,6 +51,7 @@ function App() {
   const [deliveryProject, setDeliveryProject] = useState<Project | null>(null);
   const [intelligenceProject, setIntelligenceProject] = useState<Project | null>(null);
   const [collaborationOpen, setCollaborationOpen] = useState(false);
+  const [organizationOpen, setOrganizationOpen] = useState(false);
   const [projectForm, setProjectForm] = useState({
     code: "", name: "", clientName: "", location: "",
     startDate: new Date().toISOString().slice(0, 10),
@@ -155,7 +157,7 @@ function App() {
         <section className="dashboard">
           <div className="dashboard-heading">
             <div><p className="eyebrow">PROJECT DELIVERY / OVERVIEW</p><h1>Good to see you, {session.name.split(" ")[0]}.</h1><p className="muted">Your organization's project portfolio at a glance.</p></div>
-            <div className="dashboard-actions"><button className="ghost-button" onClick={() => setCollaborationOpen(true)}>Team inbox & activity</button><button className="primary-button" onClick={() => { setProjectError(""); setShowCreate((value) => !value); }}>＋ New project</button></div>
+            <div className="dashboard-actions">{["owner", "admin"].includes(session.organization?.role ?? "") && <button className="ghost-button" onClick={() => setOrganizationOpen(true)}>Organization members</button>}<button className="ghost-button" onClick={() => setCollaborationOpen(true)}>Team inbox & activity</button><button className="primary-button" onClick={() => { setProjectError(""); setShowCreate((value) => !value); }}>＋ New project</button></div>
           </div>
           <div className="metric-grid">
             <article className="metric-card"><span>PORTFOLIO</span><strong>{projects.length}</strong><small>Projects in workspace</small></article>
@@ -195,6 +197,7 @@ function App() {
           {deliveryProject && accessToken && <DeliveryWorkspace project={deliveryProject} token={accessToken} onClose={() => setDeliveryProject(null)} />}
           {intelligenceProject && accessToken && <IntelligenceWorkspace project={intelligenceProject} token={accessToken} onClose={() => setIntelligenceProject(null)} />}
           {collaborationOpen && accessToken && <CollaborationWorkspace projects={projects} token={accessToken} canManageMembers={["owner", "admin", "project_manager"].includes(session.organization?.role ?? "")} onClose={() => setCollaborationOpen(false)} />}
+          {organizationOpen && accessToken && session.organization && <OrganizationWorkspace token={accessToken} role={session.organization.role} onClose={() => setOrganizationOpen(false)} />}
         </section>
       </main>
     );
