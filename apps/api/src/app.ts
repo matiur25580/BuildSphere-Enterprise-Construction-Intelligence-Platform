@@ -19,6 +19,7 @@ import { errorHandler } from "./middleware/error-handler.js";
 import { createRequestId, isAllowedOrigin, parseAllowedOrigins, parseTrustProxy } from "./config/security.js";
 import { getCollaborationTransactionStatus } from "./modules/collaboration/collaboration.service.js";
 import { documentStorageHealthCheck } from "./modules/delivery/document-storage.js";
+import { evaluateReadiness } from "./readiness.js";
 
 const app = express();
 const allowedOrigins = parseAllowedOrigins(process.env.CLIENT_URL);
@@ -63,22 +64,17 @@ app.get("/api/v1/health", (_request, response) => {
 });
 
 app.get("/api/v1/ready", async (_request, response) => {
-  const mongodbReady = mongoose.connection.readyState === 1;
-  let storageReady = false;
-  try {
-    await documentStorageHealthCheck();
-    storageReady = true;
-  } catch {
-    storageReady = false;
-  }
-  const ready = mongodbReady && storageReady;
-  response.status(ready ? 200 : 503).json({
-    success: ready,
+  const readiness = await evaluateReadiness({
+    mongodbReady: mongoose.connection.readyState === 1,
+    documentStorageCheck: documentStorageHealthCheck,
+  });
+  response.status(readiness.ready ? 200 : 503).json({
+    success: readiness.ready,
     service: "BuildSphere API",
-    status: ready ? "ready" : "not_ready",
+    status: readiness.ready ? "ready" : "not_ready",
     dependencies: {
-      mongodb: mongodbReady ? "connected" : "disconnected",
-      documentStorage: storageReady ? "available" : "unavailable",
+      mongodb: readiness.mongodb,
+      documentStorage: readiness.documentStorage,
       collaborationOutboxTransactions: getCollaborationTransactionStatus(),
     },
     timestamp: new Date().toISOString(),
