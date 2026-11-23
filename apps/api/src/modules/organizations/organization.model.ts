@@ -5,6 +5,7 @@ const organizationSchema = new Schema(
     name: { type: String, required: true, trim: true, maxlength: 120 },
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
     status: { type: String, enum: ["active", "suspended"], default: "active", required: true },
+    membershipRevision: { type: Number, default: 0, min: 0 },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   { timestamps: true },
