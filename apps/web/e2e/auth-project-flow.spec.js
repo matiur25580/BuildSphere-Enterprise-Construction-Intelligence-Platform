@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+import { test, expect } from "@playwright/test";
 
 test("register, restore session, create project, sign out and sign in", async ({ page }) => {
   const unique = `e2e-${Date.now()}-${Math.random().toString(16).slice(2)}`;
