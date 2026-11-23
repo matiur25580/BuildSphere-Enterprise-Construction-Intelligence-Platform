@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api/v1";
 type Project = { _id: string; code: string; name: string };
@@ -26,7 +26,7 @@ export function BimWorkspace({ project, token }: { project: Project; token: stri
   const [saving, setSaving] = useState(false);
   const [modelForm, setModelForm] = useState({ documentId: "", modelName: "", discipline: "architecture", revision: "A", ifcSchema: "IFC4", description: "" });
   const [issueForm, setIssueForm] = useState({ modelId: "", reference: "", title: "", description: "", issueType: "clash", priority: "high", ifcGlobalId: "", location: "", viewpoint: "" });
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const [m, i, d] = await Promise.all([
@@ -35,12 +35,12 @@ export function BimWorkspace({ project, token }: { project: Project; token: stri
         request<ControlledDocument[]>("/projects/" + project._id + "/delivery/documents", token),
       ]);
       setModels(m); setIssues(i); setDocuments(d);
-      if (!issueForm.modelId && m[0]) setIssueForm((current) => ({ ...current, modelId: m[0]._id }));
+      setIssueForm((current) => !current.modelId && m[0] ? { ...current, modelId: m[0]._id } : current);
       setError("");
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load BIM coordination"); }
     finally { setLoading(false); }
-  };
-  useEffect(() => { void refresh(); }, [project._id, token]);
+  }, [base, project._id, token]);
+  useEffect(() => { void refresh(); }, [refresh]);
   const modelDocuments = documents.filter((document) => document.versions.some((version) => version.version === document.currentVersion && Boolean(version.fileAssetId) && version.fileName.toLowerCase().endsWith(".ifc")));
   const registerModel = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setSaving(true); setError("");
