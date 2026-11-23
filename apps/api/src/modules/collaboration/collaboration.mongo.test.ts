@@ -110,10 +110,7 @@ test("transactional domain writes roll back and commit with their outbox event",
     organizationId: String(organizationId), projectId: String(failedProject._id), actorId: String(actorId),
     eventType: "tasks.assigned" as const, targetType: "project", targetId: String(failedProject._id), summary: "transaction rollback test",
   };
-  await assert.rejects(runProjectMutationWithEvent(event, async (session) => {
-    await failedProject.save(session ? { session } : {});
-    throw new Error("simulate failure before outbox insert");
-  }), /simulate failure/);
+  await assert.rejects(runProjectMutationWithEvent({ ...event, eventType: "invalid.event" as never }, (session) => failedProject.save(session ? { session } : {})), /Unsupported collaboration event/);
   assert.equal(await Project.countDocuments({ _id: failedProject._id }), 0);
   assert.equal(await CollaborationOutbox.countDocuments({ targetId: failedProject._id }), 0);
 
@@ -145,6 +142,7 @@ test("outbox worker recovers expired leases and retries idempotently after parti
     leaseExpiresAt: new Date(Date.now() - 1),
     recipientIds: [recipientId, actorId],
   });
+  await Activity.create({ organizationId, projectId, actorId, eventType: "tasks.assigned", targetType: "work_item", targetId, summary: "Assigned work item", sourceEventId: event._id });
   assert.equal(await processCollaborationOutboxBatch(1), 1);
   assert.equal(await Activity.countDocuments({ sourceEventId: event._id }), 1);
   assert.equal(await Notification.countDocuments({ activityId: { $in: await Activity.find({ sourceEventId: event._id }).distinct("_id") }, recipientId }), 1);
