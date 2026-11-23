@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { authenticate, requireRoles } from "../../middleware/authenticate.js";
+import { authenticate } from "../../middleware/authenticate.js";
+import { requireProjectAccess, requireProjectRoles } from "../../middleware/project-access.js";
 import * as controller from "./project-membership.controller.js";
 
 const router = Router({ mergeParams: true });
-router.use(authenticate);
+router.use(authenticate, requireProjectAccess());
 router.get("/", controller.listProjectMembers);
-router.get("/eligible", requireRoles("owner", "admin", "project_manager"), controller.listEligibleProjectMembers);
-router.post("/", requireRoles("owner", "admin", "project_manager"), controller.addProjectMember);
-router.patch("/:memberId", requireRoles("owner", "admin", "project_manager"), controller.updateProjectMember);
+router.get("/eligible", requireProjectRoles("project_manager"), controller.listEligibleProjectMembers);
+router.post("/", requireProjectRoles("project_manager"), controller.addProjectMember);
+router.patch("/:memberId", requireProjectRoles("project_manager"), controller.updateProjectMember);
 export default router;
