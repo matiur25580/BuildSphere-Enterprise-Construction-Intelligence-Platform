@@ -106,7 +106,7 @@ export const uploadDocumentFile = asyncHandler(async (request: Request, response
       await asset.save(session ? { session } : {});
       item.versions.push({
         version, fileAssetId: asset._id,
-        fileUrl: `/api/v1/projects/${request.params.projectId}/delivery/documents/${item._id}/files/${asset._id}/download`,
+        fileUrl: `/projects/${request.params.projectId}/delivery/documents/${item._id}/files/${asset._id}/download`,
         fileName: normalized.fileName, checksum: sha256, notes: "Malware scan passed",
         uploadedBy: new mongoose.Types.ObjectId(auth.userId), uploadedAt: new Date(),
       });
