@@ -23,9 +23,11 @@ const decimalUnits = (value: unknown): bigint => {
   return BigInt(whole) * 10_000n + BigInt(fraction.padEnd(4, "0").slice(0, 4));
 };
 const decimalString = (units: bigint): string => {
-  const whole = units / 10_000n;
-  const fraction = (units % 10_000n).toString().padStart(4, "0").replace(/0+$/, "");
-  return fraction ? `${whole}.${fraction}` : whole.toString();
+  const sign = units < 0n ? "-" : "";
+  const absolute = units < 0n ? -units : units;
+  const whole = absolute / 10_000n;
+  const fraction = (absolute % 10_000n).toString().padStart(4, "0").replace(/0+$/, "");
+  return fraction ? `${sign}${whole}.${fraction}` : `${sign}${whole}`;
 };
 const addDecimal = (left: unknown, right: unknown): string => decimalString(decimalUnits(left) + decimalUnits(right));
 const subtractDecimal = (left: unknown, right: unknown): string => decimalString(decimalUnits(left) - decimalUnits(right));
