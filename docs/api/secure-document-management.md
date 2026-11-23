@@ -18,7 +18,7 @@ Send the raw file bytes (not JSON or multipart) with:
 - `X-File-Name`: URI-encoded original filename.
 - Request body: file bytes.
 
-Allowed types are PDF, PNG, JPEG and WEBP. The API enforces a 25 MiB maximum, validates the extension/MIME pairing and file signature, strips path components/control characters from filenames, and assigns an opaque random storage key. DOC/DOCX, ZIP, CAD/BIM model files and arbitrary binaries are not accepted by this initial secure-storage adapter.
+Allowed types are PDF, PNG, JPEG, WEBP and IFC. The API enforces a 25 MiB maximum, validates the extension/MIME pairing and file signature, strips path components/control characters from filenames, and assigns an opaque random storage key. IFC uploads must use `.ifc` plus `application/ifc` and begin with the ISO 10303-21 exchange-file marker. DOC/DOCX, ZIP, DWG, RVT and arbitrary binaries are not accepted by this adapter.
 
 The API streams the content to ClamAV using its INSTREAM protocol before persisting it. Malware-positive files are rejected with `422`; missing/unavailable scanner configuration fails closed with `503`. A scanner response other than clean is never treated as clean. The application stores files outside the public web root with restrictive file permissions, and downloads use attachment disposition, `nosniff`, and private no-store caching. SHA-256 and byte size are recorded and re-verified before download.
 
@@ -43,4 +43,4 @@ Uploads intentionally fail closed if the scanner or transaction topology is unav
 
 MongoDB-backed HTTP tests exercise raw PDF upload, clean scan, malware-positive rejection, MIME/signature rejection, checksum-backed download, recipient authorization, inactive project membership and cross-tenant denial. A local fake ClamAV protocol server is used in CI; production scanner efficacy still depends on a correctly maintained ClamAV deployment and signature updates.
 
-Not included: multipart uploads/resumable chunking, S3/GCS/Azure object storage, CAD/BIM/IFC/DWG/BCF preview, drawing markup, OCR, document classification, retention automation, legal holds, electronic signatures, watermarking, DLP, federated identity, and a tamper-evident external audit ledger. Existing HTTPS file references remain supported for migration/compatibility and do not receive the same server-side binary controls.
+Not included: multipart uploads/resumable chunking, S3/GCS/Azure object storage, IFC geometry/property parsing or 3D preview, DWG/RVT, BCF ZIP import/export, drawing markup, OCR, document classification, retention automation, legal holds, electronic signatures, watermarking, DLP, federated identity, and a tamper-evident external audit ledger. See [BIM coordination](bim-coordination.md) for the IFC model register and BCF-inspired issue workflow. Existing HTTPS file references remain supported for migration/compatibility and do not receive the same server-side binary controls.
