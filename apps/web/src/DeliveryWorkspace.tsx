@@ -47,7 +47,7 @@ export function DeliveryWorkspace({ project, token, onClose }: { project: Projec
         method: "POST",
         body: JSON.stringify({
           documentNo: document.documentNo, title: document.title, category: document.category,
-          ...(document.fileUrl ? { fileUrl: document.fileUrl, fileName: document.fileName } : {}),
+          ...(!documentFile && document.fileUrl ? { fileUrl: document.fileUrl, fileName: document.fileName } : {}),
           notes: document.notes,
         }),
       });
