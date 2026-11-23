@@ -144,7 +144,7 @@ export const prepareDocumentPurgeManifest = asyncHandler(async (request: Request
     summary: "A dual-approved document purge deletion manifest was prepared",
   }, async (session) => {
     const item = await DocumentPurgeRequest.findOneAndUpdate(
-      { _id: requestId, ...scope, status: "approved", expiresAt: { $gt: preparedAt }, "approvals.1": { $exists: true }, manifest: { $eq: null } },
+      { _id: requestId, ...scope, status: "approved", expiresAt: { $gt: preparedAt }, "approvals.1": { $exists: true }, "manifest.preparedAt": { $exists: false } },
       { $set: { status: "prepared", manifest: { preparedAt, preparedBy: auth.userId, entries, manifestSha256 } } },
       { new: true, ...(session ? { session } : {}) },
     );
