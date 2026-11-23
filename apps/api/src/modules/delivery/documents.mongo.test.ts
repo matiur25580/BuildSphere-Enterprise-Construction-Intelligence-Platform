@@ -52,6 +52,10 @@ before(async () => {
         if (data.length < 4 + length) return;
         scanned = Buffer.concat([scanned, data.subarray(4, 4 + length)]);
         data = data.subarray(4 + length);
+        // The integration fixture uploads small files in one INSTREAM frame.
+        // Reply after the complete payload frame so the scanner client cannot hang on the terminator.
+        socket.end(Buffer.from(scanned.includes(Buffer.from("EICAR")) ? "stream: Eicar-Test-Signature FOUND\0" : "stream: OK\0"));
+        return;
         // The fixture payloads fit in one INSTREAM frame; answer once the complete payload arrives.
         socket.end(Buffer.from(scanned.includes(Buffer.from("EICAR")) ? "stream: Eicar-Test-Signature FOUND\0" : "stream: OK\0"));
         return;
