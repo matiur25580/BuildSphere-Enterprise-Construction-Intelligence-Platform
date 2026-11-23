@@ -163,6 +163,10 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   const invitee = await User.create({ name: "Invitee", email: "invitee@example.test", passwordHash: "test-hash" });
   const inactiveMember = await User.create({ name: "Inactive member", email: "inactive@example.test", passwordHash: "test-hash" });
   const userB = await User.create({ name: "Tenant B user", email: "user-b@example.test", passwordHash: "test-hash" });
+  const admin = await User.create({ name: "Tenant A admin", email: "admin-a@example.test", passwordHash: "test-hash" });
+  const secondOwner = await User.create({ name: "Second owner", email: "owner-two@example.test", passwordHash: "test-hash" });
+  const newMember = await User.create({ name: "New member", email: "new-member@example.test", passwordHash: "test-hash" });
+  const adminTarget = await User.create({ name: "Admin target", email: "admin-target@example.test", passwordHash: "test-hash" });
   const orgA = await Organization.create({ name: "Tenant A", slug: "tenant-a-test", createdBy: userA._id });
   const orgB = await Organization.create({ name: "Tenant B", slug: "tenant-b-test", createdBy: userB._id });
   await Membership.create([
@@ -173,6 +177,9 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
     { userId: invitee._id, organizationId: orgA._id, role: "member", status: "active" },
     { userId: inactiveMember._id, organizationId: orgA._id, role: "member", status: "active" },
     { userId: userB._id, organizationId: orgB._id, role: "owner", status: "active" },
+    { userId: admin._id, organizationId: orgA._id, role: "admin", status: "active" },
+    { userId: secondOwner._id, organizationId: orgA._id, role: "owner", status: "active" },
+    { userId: adminTarget._id, organizationId: orgA._id, role: "member", status: "active" },
   ]);
   const project = await Project.create({
     organizationId: orgA._id, code: "HTTP-1", name: "HTTP authorization project",
@@ -201,6 +208,8 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   const outsiderToken = token(String(nonMember._id), String(orgA._id), "member");
   const inactiveToken = token(String(inactiveMember._id), String(orgA._id), "member");
   const tenantBToken = token(String(userB._id), String(orgB._id), "owner");
+  const adminToken = token(String(admin._id), String(orgA._id), "admin");
+  const secondOwnerToken = token(String(secondOwner._id), String(orgA._id), "owner");
   httpServer = app.listen(0);
   await new Promise<void>((resolve) => httpServer!.once("listening", resolve));
   const address = httpServer.address();
@@ -212,6 +221,32 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   });
 
   assert.equal((await call("/api/v1/notifications")).status, 401);
+
+  assert.equal((await call("/api/v1/organization/members")).status, 401);
+  assert.equal((await call("/api/v1/organization/members", viewerToken)).status, 403);
+  const organizationMembers = await call("/api/v1/organization/members", ownerToken);
+  assert.equal(organizationMembers.status, 200);
+  const organizationMembersBody = await organizationMembers.json() as { data: Array<{ organizationId: string }> };
+  assert.ok(organizationMembersBody.data.length >= 8);
+  const addedOrganizationMember = await call("/api/v1/organization/members", ownerToken, "POST", { email: newMember.email, role: "member" });
+  assert.equal(addedOrganizationMember.status, 201);
+  const addedOrganizationMemberBody = await addedOrganizationMember.json() as { data: { _id: string } };
+  assert.equal((await call("/api/v1/organization/members", ownerToken, "POST", { email: newMember.email, role: "member" })).status, 409);
+  assert.equal((await call("/api/v1/organization/members", adminToken, "POST", { email: adminTarget.email, role: "admin" })).status, 403);
+  const adminRoleChange = await call(`/api/v1/organization/members/${String((await Membership.findOne({ organizationId: orgA._id, userId: admin._id }))?._id)}`, adminToken, "PATCH", { role: "member" });
+  assert.equal(adminRoleChange.status, 403);
+  const crossTenantMember = await Membership.findOne({ organizationId: orgA._id, userId: viewer._id });
+  assert.ok(crossTenantMember);
+  assert.equal((await call(`/api/v1/organization/members/${crossTenantMember.id}`, tenantBToken, "PATCH", { status: "suspended" })).status, 404);
+  assert.equal((await call(`/api/v1/organization/members/${addedOrganizationMemberBody.data._id}`, ownerToken, "PATCH", { status: "suspended" })).status, 200);
+  assert.equal((await call("/api/v1/notifications", token(String(newMember._id), String(orgA._id), "member"))).status, 401);
+  const secondOwnerMembership = await Membership.findOne({ organizationId: orgA._id, userId: secondOwner._id });
+  assert.ok(secondOwnerMembership);
+  assert.equal((await call(`/api/v1/organization/members/${secondOwnerMembership.id}`, ownerToken, "PATCH", { status: "suspended" })).status, 200);
+  const soleOwnerMembership = await Membership.findOne({ organizationId: orgA._id, userId: userA._id });
+  assert.ok(soleOwnerMembership);
+  assert.equal((await call(`/api/v1/organization/members/${soleOwnerMembership.id}`, ownerToken, "PATCH", { status: "suspended" })).status, 409);
+  assert.equal((await call("/api/v1/organization/members", secondOwnerToken)).status, 401);
   const inbox = await call("/api/v1/notifications", ownerToken);
   assert.equal(inbox.status, 200);
   const inboxBody = await inbox.json() as { data: { items: Array<{ _id: string }> } };
