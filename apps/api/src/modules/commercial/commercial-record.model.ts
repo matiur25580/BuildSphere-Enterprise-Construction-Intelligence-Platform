@@ -8,7 +8,7 @@ const commercialRecordSchema = new Schema({
   reference: { type: String, required: true, trim: true, uppercase: true, maxlength: 48 },
   counterparty: { type: String, required: true, trim: true, maxlength: 160 },
   description: { type: String, trim: true, maxlength: 1000, default: "" },
-  amount: { type: Number, min: 0.01, required: true },
+  amount: { type: Schema.Types.Decimal128, min: "0.0001", required: true },
   currency: { type: String, uppercase: true, minlength: 3, maxlength: 3, default: "USD" },
   issueDate: { type: Date, required: true },
   dueDate: { type: Date, default: null },
