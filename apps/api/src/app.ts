@@ -20,7 +20,7 @@ const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
 
 app.disable("x-powered-by");
 if (trustProxy !== false) app.set("trust proxy", trustProxy);
-app.use((request, response, next) => {
+app.use((_request, response, next) => {
   const requestId = createRequestId();
   response.setHeader("X-Request-Id", requestId);
   response.locals.requestId = requestId;
