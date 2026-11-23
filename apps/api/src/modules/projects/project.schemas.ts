@@ -54,6 +54,7 @@ export const updateWorkItemSchema = z.object({
   endDate: dateValue.optional(),
   progress: z.coerce.number().min(0).max(100).optional(),
   assignedTo: z.string().max(120).optional(),
+  assignedUserId: z.string().regex(/^[a-f\\d]{24}$/i).nullable().optional(),
   predecessorIds: z.array(z.string()).optional(),
 }).refine((value) => Object.keys(value).length > 0, "At least one field is required");
 
