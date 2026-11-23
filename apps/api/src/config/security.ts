@@ -14,4 +14,7 @@ export const parseTrustProxy = (value: string | undefined): boolean | number | s
   throw new Error("TRUST_PROXY must be true, false, or a non-negative integer");
 };
 
+export const isApiRateLimitExemptPath = (path: string): boolean =>
+  path === "/v1/health" || path === "/v1/ready";
+
 export const createRequestId = (): string => randomUUID();
