@@ -20,7 +20,7 @@ Send the raw file bytes (not JSON or multipart) with:
 
 Allowed types are PDF, PNG, JPEG, WEBP and IFC. The API enforces a 25 MiB maximum, validates the extension/MIME pairing and file signature, strips path components/control characters from filenames, and assigns an opaque random storage key. IFC uploads must use `.ifc` plus `application/ifc` and begin with the ISO 10303-21 exchange-file marker. DOC/DOCX, ZIP, DWG, RVT and arbitrary binaries are not accepted by this adapter.
 
-The API streams the content to ClamAV using its INSTREAM protocol before persisting it. Malware-positive files are rejected with `422`; missing/unavailable scanner configuration fails closed with `503`. A scanner response other than clean is never treated as clean. The application stores files outside the public web root with restrictive file permissions, and downloads use attachment disposition, `nosniff`, and private no-store caching. SHA-256 and byte size are recorded and re-verified before download.
+The API streams the content to ClamAV using its INSTREAM protocol before persisting it. Malware-positive files are rejected with `422`; missing/unavailable scanner configuration fails closed with `503`. A scanner response other than clean is never treated as clean. The application stores files outside the public web root using the configured private storage adapter. The filesystem driver uses restrictive directory/file permissions; the S3 driver uses authenticated AWS Signature Version 4 requests and never creates public object URLs. Downloads use attachment disposition, `nosniff`, and private no-store caching. SHA-256 and byte size are recorded and re-verified before download.
 
 ## Atomicity and audit
 
@@ -32,15 +32,16 @@ The document access log records upload and authorized download events with organ
 
 Configure:
 - `OUTBOX_TRANSACTION_MODE=required` and a replica-set or sharded MongoDB deployment.
-- `DOCUMENT_STORAGE_DIR` as a private, durable, access-restricted mounted volume.
+- Set `DOCUMENT_STORAGE_DRIVER=filesystem` and `DOCUMENT_STORAGE_DIR` as a private, durable, access-restricted mounted volume; or set `DOCUMENT_STORAGE_DRIVER=s3` and configure `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY` (optionally `S3_SESSION_TOKEN`).
+- For S3, use a private bucket with public access blocked and grant the API identity only the required bucket/object permissions (ListBucket for readiness, GetObject, PutObject and DeleteObject). Prefer workload/temporary credentials where available; never commit credentials. HTTPS is required for S3 in production.
 - `CLAMD_HOST` and optional `CLAMD_PORT` (default 3310) for a reachable ClamAV daemon.
 - Network policy allowing the API to reach the scanner privately; do not expose ClamAV to the public internet.
 - Encrypted storage, backups, retention/legal-hold policy, monitoring and disaster-recovery procedures appropriate to the deployment.
 
-Uploads intentionally fail closed if the scanner or transaction topology is unavailable. The current adapter is a single-node private filesystem volume, not a distributed object-storage service; multiple API replicas must share a secure POSIX volume or use a future S3-compatible storage adapter. No public static route exposes stored files.
+Uploads intentionally fail closed if the scanner or transaction topology is unavailable. The default adapter is a private POSIX filesystem volume. For multi-replica deployments, configure the S3-compatible adapter so every API replica reads and writes the same private bucket. No public static route or unauthenticated object URL exposes stored files.
 
 ## Verification and boundaries
 
 MongoDB-backed HTTP tests exercise raw PDF upload, clean scan, malware-positive rejection, MIME/signature rejection, checksum-backed download, recipient authorization, inactive project membership and cross-tenant denial. A local fake ClamAV protocol server is used in CI; production scanner efficacy still depends on a correctly maintained ClamAV deployment and signature updates.
 
-Not included: multipart uploads/resumable chunking, S3/GCS/Azure object storage, IFC geometry/property parsing or 3D preview, DWG/RVT, BCF ZIP import/export, drawing markup, OCR, document classification, retention automation, legal holds, electronic signatures, watermarking, DLP, federated identity, and a tamper-evident external audit ledger. See [BIM coordination](bim-coordination.md) for the IFC model register and BCF-inspired issue workflow. Existing HTTPS file references remain supported for migration/compatibility and do not receive the same server-side binary controls.
+Not included in this milestone: multipart uploads/resumable chunking, automated retention/legal-hold enforcement, and scheduled orphan-object reconciliation. The S3 adapter currently uses bounded single-request object PUT/GET/DELETE operations for files up to 25 MiB. Also not included: IFC geometry/property parsing or 3D preview, DWG/RVT, BCF ZIP import/export, drawing markup, OCR, document classification, retention automation, legal holds, electronic signatures, watermarking, DLP, federated identity, and a tamper-evident external audit ledger. See [BIM coordination](bim-coordination.md) for the IFC model register and BCF-inspired issue workflow. Existing HTTPS file references remain supported for migration/compatibility and do not receive the same server-side binary controls.
