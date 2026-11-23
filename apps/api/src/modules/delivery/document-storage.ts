@@ -1,8 +1,7 @@
 import { createConnection } from "node:net";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { basename, extname } from "node:path";
+import { basename, extname, join } from "node:path";
 import { HttpError } from "../../common/http-error.js";
 
 const MIME_BY_EXTENSION: Record<string, string> = {
@@ -88,7 +87,7 @@ export const normalizeDocumentFile = (body: unknown, rawName: string | undefined
   if (!rawName || rawName.length > 720) throw new HttpError(400, "A valid x-file-name header is required");
   let decodedName: string;
   try { decodedName = decodeURIComponent(rawName); } catch { throw new HttpError(400, "Invalid file name encoding"); }
-  const fileName = basename(decodedName.replace(/\/g, "/")).replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 180);
+  const fileName = basename(decodedName.replace(/\\/g, "/")).replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 180);
   const extension = extname(fileName).toLowerCase();
   const expectedType = MIME_BY_EXTENSION[extension];
   if (!fileName || !expectedType || contentType?.split(";")[0].trim().toLowerCase() !== expectedType) {
