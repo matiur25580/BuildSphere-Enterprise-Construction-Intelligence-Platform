@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CommercialWorkspace } from "./CommercialWorkspace.js";
 import { FieldWorkspace } from "./FieldWorkspace.js";
 import { DeliveryWorkspace } from "./DeliveryWorkspace.js";
@@ -43,6 +43,7 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [initializing, setInitializing] = useState(true);
+  const restoreSessionRequest = useRef<Promise<{ accessToken: string; user: Session["user"]; organization: Session["organization"] } | null> | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -78,24 +79,37 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    const restoreSession = async () => {
-      try {
-        const refreshed = await apiRequest<{ accessToken: string }>("/auth/refresh", { method: "POST" });
-        if (!refreshed.data?.accessToken) return;
-        const current = await apiRequest<{ user: Session["user"]; organization: Session["organization"] }>(
-          "/auth/me", { method: "GET" }, refreshed.data.accessToken,
-        );
-        if (active && current.data) {
-          setAccessToken(refreshed.data.accessToken);
-          setSession({ ...current.data.user, organization: current.data.organization });
+    // React StrictMode replays mount effects in development. Refresh tokens are
+    // single-use, so share one in-flight restoration request across that replay
+    // instead of rotating the same cookie twice and triggering reuse detection.
+    if (!restoreSessionRequest.current) {
+      restoreSessionRequest.current = (async () => {
+        try {
+          const refreshed = await apiRequest<{ accessToken: string }>("/auth/refresh", { method: "POST" });
+          if (!refreshed.data?.accessToken) return null;
+          const current = await apiRequest<{ user: Session["user"]; organization: Session["organization"] }>(
+            "/auth/me", { method: "GET" }, refreshed.data.accessToken,
+          );
+          if (!current.data) return null;
+          return {
+            accessToken: refreshed.data.accessToken,
+            user: current.data.user,
+            organization: current.data.organization,
+          };
+        } catch {
+          // No refresh cookie means there is no active browser session.
+          return null;
         }
-      } catch {
-        // No refresh cookie means there is no active browser session.
-      } finally {
-        if (active) setInitializing(false);
+      })();
+    }
+    void restoreSessionRequest.current.then((restored) => {
+      if (!active) return;
+      if (restored) {
+        setAccessToken(restored.accessToken);
+        setSession({ ...restored.user, organization: restored.organization });
       }
-    };
-    void restoreSession();
+      setInitializing(false);
+    });
     return () => { active = false; };
   }, []);
 
