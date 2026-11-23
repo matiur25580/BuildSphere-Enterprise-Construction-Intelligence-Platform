@@ -22,3 +22,6 @@ jobs:
         run: npm run build
       - name: Run API unit tests
         run: npm test --workspace=@buildsphere/api
+
+      - name: Build production API container
+        run: docker build -t buildsphere-api:ci .
