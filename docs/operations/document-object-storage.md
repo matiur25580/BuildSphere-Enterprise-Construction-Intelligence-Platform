@@ -13,7 +13,7 @@ Configure the API runtime with:
 - `DOCUMENT_S3_FORCE_PATH_STYLE=true` — set for providers that require path-style addressing
 - `DOCUMENT_S3_ACCESS_KEY_ID` and `DOCUMENT_S3_SECRET_ACCESS_KEY` — optional when the runtime supplies an IAM/workload identity; if one is supplied, both must be supplied
 
-The API uses the AWS credential provider chain when explicit credentials are omitted. Uploaded objects are encrypted at rest with S3-managed AES256 encryption. Use a bucket policy that denies public access and permits only the API's runtime identity to read, write and delete objects. Do not expose bucket credentials to browser clients.
+The API uses the AWS credential provider chain when explicit credentials are omitted. Uploaded objects are encrypted at rest with S3-managed AES256 encryption. Use a bucket policy that denies public access and permits only the API's runtime identity to read, write and delete objects, plus `s3:ListBucket` for the readiness endpoint's `HeadBucket` probe. Do not expose bucket credentials to browser clients.
 
 ## Existing local files
 
@@ -23,4 +23,4 @@ If an existing deployment has document assets on local disk, keep the applicatio
 
 Without `NODE_ENV=production`, the provider defaults to local storage for backwards-compatible development. Tests should set `DOCUMENT_STORAGE_PROVIDER=local` and use a temporary `DOCUMENT_STORAGE_DIR`. Production does not have this fallback.
 
-The API continues to malware-scan uploads before storing them, records immutable storage keys and checksums in MongoDB, verifies the checksum on download, and audits authorized downloads. The S3 bucket is an external operational dependency and should be monitored and backed up independently of MongoDB.
+The API validates storage configuration before startup. `/api/v1/ready` returns HTTP 503 unless both MongoDB and the configured storage backend are reachable; it reports document storage as `available` or `unavailable` without exposing credentials or provider error details. For S3 this uses `HeadBucket`; for local development it checks that the storage directory is readable and writable. The API continues to malware-scan uploads before storing them, records immutable storage keys and checksums in MongoDB, verifies the checksum on download, and audits authorized downloads. The S3 bucket is an external operational dependency and should be monitored and backed up independently of MongoDB.
