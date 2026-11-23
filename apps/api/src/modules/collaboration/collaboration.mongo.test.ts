@@ -13,7 +13,6 @@ import { Organization } from "../organizations/organization.model.js";
 import { Membership } from "../organizations/membership.model.js";
 import { Project } from "../projects/project.model.js";
 import { WorkItem } from "../projects/work-item.model.js";
-import { Activity as ActivityModel } from "./collaboration.models.js";
 
 
 const mongoUri = process.env.MONGODB_URI;
@@ -158,6 +157,8 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   const viewer = await User.create({ name: "Project viewer", email: "viewer@example.test", passwordHash: "test-hash" });
   const nonMember = await User.create({ name: "Non member", email: "outsider@example.test", passwordHash: "test-hash" });
   const assignee = await User.create({ name: "Assignee", email: "assignee@example.test", passwordHash: "test-hash" });
+  const invitee = await User.create({ name: "Invitee", email: "invitee@example.test", passwordHash: "test-hash" });
+  const inactiveMember = await User.create({ name: "Inactive member", email: "inactive@example.test", passwordHash: "test-hash" });
   const userB = await User.create({ name: "Tenant B user", email: "user-b@example.test", passwordHash: "test-hash" });
   const orgA = await Organization.create({ name: "Tenant A", slug: "tenant-a-test", createdBy: userA._id });
   const orgB = await Organization.create({ name: "Tenant B", slug: "tenant-b-test", createdBy: userB._id });
@@ -166,6 +167,8 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
     { userId: viewer._id, organizationId: orgA._id, role: "member", status: "active" },
     { userId: nonMember._id, organizationId: orgA._id, role: "member", status: "active" },
     { userId: assignee._id, organizationId: orgA._id, role: "member", status: "active" },
+    { userId: invitee._id, organizationId: orgA._id, role: "member", status: "active" },
+    { userId: inactiveMember._id, organizationId: orgA._id, role: "member", status: "active" },
     { userId: userB._id, organizationId: orgB._id, role: "owner", status: "active" },
   ]);
   const project = await Project.create({
@@ -175,6 +178,7 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   await ProjectMembership.create([
     { organizationId: orgA._id, projectId: project._id, userId: viewer._id, role: "contributor", status: "active", addedBy: userA._id },
     { organizationId: orgA._id, projectId: project._id, userId: assignee._id, role: "contributor", status: "active", addedBy: userA._id },
+    { organizationId: orgA._id, projectId: project._id, userId: inactiveMember._id, role: "contributor", status: "inactive", addedBy: userA._id },
   ]);
   const activity = await Activity.create({
     organizationId: orgA._id, projectId: project._id, actorId: userA._id,
@@ -192,6 +196,7 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   const ownerToken = token(String(userA._id), String(orgA._id), "owner");
   const viewerToken = token(String(viewer._id), String(orgA._id), "member");
   const outsiderToken = token(String(nonMember._id), String(orgA._id), "member");
+  const inactiveToken = token(String(inactiveMember._id), String(orgA._id), "member");
   const tenantBToken = token(String(userB._id), String(orgB._id), "owner");
   httpServer = app.listen(0);
   await new Promise<void>((resolve) => httpServer!.once("listening", resolve));
@@ -217,9 +222,11 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
 
   assert.equal((await call(`/api/v1/projects/${project.id}/collaboration/activity`, viewerToken)).status, 200);
   assert.equal((await call(`/api/v1/projects/${project.id}/collaboration/activity`, outsiderToken)).status, 403);
+  assert.equal((await call(`/api/v1/projects/${project.id}/collaboration/activity`, inactiveToken)).status, 403);
   assert.equal((await call(`/api/v1/projects/${project.id}/collaboration/activity`, tenantBToken)).status, 404);
   assert.equal((await call(`/api/v1/projects/${project.id}/members`, viewerToken, "POST", { userId: String(assignee._id), role: "viewer" })).status, 403);
   assert.equal((await call(`/api/v1/projects/${project.id}/members`, ownerToken, "POST", { userId: String(userB._id), role: "viewer" })).status, 404);
+  assert.equal((await call(`/api/v1/projects/${project.id}/members`, ownerToken, "POST", { userId: String(invitee._id), role: "viewer" })).status, 201);
 
   const task = await call(`/api/v1/projects/${project.id}/work-items`, ownerToken, "POST", {
     code: "TASK-HTTP", title: "Assigned task", startDate: "2026-02-01", endDate: "2026-02-02", assignedUserId: String(assignee._id),
@@ -249,4 +256,15 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   const replayed = await CollaborationOutbox.findById(failedEvent._id);
   assert.equal(replayed?.status, "pending");
   assert.equal(replayed?.replayCount, 1);
+});
+
+test("activity audit records reject application-level mutation and deletion", async () => {
+  const record = await Activity.create({
+    organizationId: new mongoose.Types.ObjectId(), projectId: new mongoose.Types.ObjectId(),
+    actorId: new mongoose.Types.ObjectId(), eventType: "tasks.assigned",
+    targetType: "work_item", targetId: new mongoose.Types.ObjectId(), summary: "Immutable audit record",
+  });
+  await assert.rejects(Activity.updateOne({ _id: record._id }, { $set: { summary: "tampered" } }), /append-only/);
+  await assert.rejects(Activity.deleteOne({ _id: record._id }), /append-only/);
+  assert.equal((await Activity.findById(record._id))?.summary, "Immutable audit record");
 });
