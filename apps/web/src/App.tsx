@@ -5,6 +5,7 @@ import { DeliveryWorkspace } from "./DeliveryWorkspace.js";
 import { IntelligenceWorkspace } from "./IntelligenceWorkspace.js";
 import { CollaborationWorkspace } from "./CollaborationWorkspace.js";
 import { OrganizationWorkspace } from "./OrganizationWorkspace.js";
+import { calculateProgress, summarizePortfolio } from "./lib/project-metrics.js";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api/v1";
 type Session = {
@@ -184,8 +185,7 @@ function App() {
   if (initializing) return <main className="auth-shell"><div className="auth-card loading">Restoring secure session…</div></main>;
 
   if (session) {
-    const activeCount = projects.filter((project) => project.status === "active").length;
-    const totalBudget = projects.reduce((sum, project) => sum + project.budget, 0);
+    const portfolio = summarizePortfolio(projects);
     return (
       <main className="app-shell">
         <header className="app-header">
@@ -215,8 +215,8 @@ function App() {
           </div>
           <div className="metric-grid">
             <article className="metric-card"><span>PORTFOLIO</span><strong>{projects.length}</strong><small>Projects in workspace</small></article>
-            <article className="metric-card"><span>ACTIVE DELIVERY</span><strong>{activeCount}</strong><small>Projects currently active</small></article>
-            <article className="metric-card"><span>COMMITTED BUDGET</span><strong>{new Intl.NumberFormat(undefined, { style: "currency", currency: projects[0]?.currency ?? "USD", maximumFractionDigits: 0 }).format(totalBudget)}</strong><small>Combined project budgets</small></article>
+            <article className="metric-card"><span>ACTIVE DELIVERY</span><strong>{portfolio.activeProjects}</strong><small>Projects currently active</small></article>
+            <article className="metric-card"><span>COMMITTED BUDGET</span><strong>{new Intl.NumberFormat(undefined, { style: "currency", currency: projects[0]?.currency ?? "USD", maximumFractionDigits: 0 }).format(portfolio.totalBudget)}</strong><small>Combined project budgets</small></article>
           </div>
           {showCreate && <section className="create-panel">
             <div className="panel-heading"><div><p className="eyebrow">PORTFOLIO SETUP</p><h2>Create a project</h2></div><button className="ghost-button" type="button" onClick={() => setShowCreate(false)}>Close</button></div>
@@ -237,7 +237,7 @@ function App() {
           {projectError && !showCreate && <p className="form-error" role="alert">{projectError}</p>}
           {projectsLoading ? <div className="empty-state">Loading portfolio…</div> : projects.length === 0 ? <div className="empty-state"><span className="empty-icon">▦</span><h3>Your portfolio starts here</h3><p>Create your first project to begin organizing scope, milestones, and delivery progress.</p><button className="primary-button" onClick={() => setShowCreate(true)}>Create your first project</button></div> :
             <div className="project-grid">{projects.map((project) => {
-              const progress = project.workItemCount ? Math.round(project.completedWorkItems / project.workItemCount * 100) : 0;
+              const progress = calculateProgress(project.completedWorkItems, project.workItemCount);
               return <article className="project-card" key={project._id}>
                 <div className="project-card-top"><span className="project-code">{project.code}</span><span className={`status-pill status-${project.status}`}>{project.status.replace("_", " ")}</span></div>
                 <h3>{project.name}</h3><p className="project-client">{project.clientName || "Client not assigned"}{project.location ? ` · ${project.location}` : ""}</p>
