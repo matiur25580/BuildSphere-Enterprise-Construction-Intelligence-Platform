@@ -40,7 +40,7 @@ export const publishProjectEvent = async (input: ProjectEventInput, session?: Cl
     eventType: input.eventType,
     targetType: input.targetType,
     targetId: input.targetId,
-    summary: input.summary.trim().slice(0, 240),
+    summary: input.summary.replace(/[\\u0000-\\u001f\\u007f]/g, " ").replace(/\\s+/g, " ").trim().slice(0, 240),
     recipientIds: (input.recipientIds ?? []).map((id) => new mongoose.Types.ObjectId(id)),
     status: "pending",
     nextAttemptAt: new Date(),
@@ -126,7 +126,7 @@ export const processCollaborationOutboxBatch = async (batchSize = 25): Promise<n
         organizationId: event.organizationId, projectId: event.projectId, status: "active",
         userId: { $ne: event.actorId },
       };
-      if (event.recipientIds.length) memberFilter.userId = { $in: event.recipientIds };
+      if (event.recipientIds.length) memberFilter.userId = { $in: event.recipientIds, $ne: event.actorId };
       const members = await ProjectMembership.find(memberFilter).select("userId").lean();
       for (const member of members) {
         await Notification.updateOne(
