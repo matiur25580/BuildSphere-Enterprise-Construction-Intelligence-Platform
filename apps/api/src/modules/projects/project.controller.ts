@@ -25,7 +25,7 @@ export const listProjects = asyncHandler(async (request: Request, response: Resp
   const countMap = new Map(counts.map((item) => [String(item._id), item]));
   response.json({ success: true, data: projects.map((project) => {
     const count = countMap.get(String(project._id));
-    return { ...project, workItemCount: count?.total ?? 0, completedWorkItems: count?.completed ?? 0 };
+    return { ...project, budget: String(project.budget ?? "0"), workItemCount: count?.total ?? 0, completedWorkItems: count?.completed ?? 0 };
   }) });
 });
 
@@ -34,7 +34,7 @@ export const createProject = asyncHandler(async (request: Request, response: Res
   const input = createProjectSchema.parse(request.body);
   const project = await Project.create({ ...input, organizationId: auth.organizationId, createdBy: auth.userId });
   await ProjectMembership.create({ organizationId: auth.organizationId, projectId: project._id, userId: auth.userId, role: "project_manager", status: "active", addedBy: auth.userId });
-  response.status(201).json({ success: true, data: project });
+  response.status(201).json({ success: true, data: { ...project.toObject(), budget: String(project.budget ?? "0") } });
 });
 
 export const getProject = asyncHandler(async (request: Request, response: Response) => {
@@ -42,7 +42,7 @@ export const getProject = asyncHandler(async (request: Request, response: Respon
   const project = await Project.findOne({ _id: request.params.projectId, organizationId: auth.organizationId });
   if (!project) throw new HttpError(404, "Project not found");
   const workItems = await WorkItem.find({ projectId: project._id, organizationId: auth.organizationId }).sort({ startDate: 1, code: 1 }).lean();
-  response.json({ success: true, data: { project, workItems } });
+  response.json({ success: true, data: { project: { ...project.toObject(), budget: String(project.budget ?? "0") }, workItems } });
 });
 
 export const updateProject = asyncHandler(async (request: Request, response: Response) => {
@@ -55,7 +55,7 @@ export const updateProject = asyncHandler(async (request: Request, response: Res
   if (nextEnd < nextStart) throw new HttpError(400, "Target end date must be on or after the start date");
   Object.assign(existing, input);
   await existing.save();
-  response.json({ success: true, data: existing });
+  response.json({ success: true, data: { ...existing.toObject(), budget: String(existing.budget ?? "0") } });
 });
 
 export const listWorkItems = asyncHandler(async (request: Request, response: Response) => {
