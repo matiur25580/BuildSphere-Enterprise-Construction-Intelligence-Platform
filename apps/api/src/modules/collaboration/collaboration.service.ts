@@ -85,7 +85,7 @@ export const runProjectMutationWithEvent = async <T>(
   return result;
 };
 
-export const outboxLeaseFilter = (id: unknown, leaseToken: string) => ({ _id: id, status: "processing", leaseToken });
+export const outboxLeaseFilter = (id: unknown, leaseToken: string) => ({ _id: id, status: "processing" as const, leaseToken });
 
 export const collaborationRetryDelay = (attempt: number): number => Math.min(60_000 * (2 ** Math.max(attempt - 1, 0)), 60 * 60 * 1000);
 const MAX_ATTEMPTS = 8;
