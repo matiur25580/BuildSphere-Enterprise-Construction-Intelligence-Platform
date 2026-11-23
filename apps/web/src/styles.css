@@ -54,7 +54,7 @@ form input::placeholder { color: #64748b; }
 .org-switcher:disabled { opacity: .85; cursor: default; }
 .org-switcher option { background: #111c2b; color: #edf2f7; }
 .org-switching { color: #66d2b4; font-size: 10px; white-space: nowrap; }
-.organization-switch-error { max-width: 1180px; margin: 12px auto -28px; }
+.organization-switch-error { max-width: 1180px; margin: 12px auto 0; }
 .dashboard { max-width: 1180px; margin: 54px auto 80px; }
 .dashboard-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 30px; }
 .dashboard-heading h1 { margin: 12px 0 5px; font: 800 clamp(28px,4vw,42px) "Manrope",sans-serif; letter-spacing: -1.5px; }
