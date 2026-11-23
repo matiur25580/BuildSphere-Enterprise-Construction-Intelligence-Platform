@@ -1,6 +1,6 @@
 import { createConnection } from "node:net";
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { HttpError } from "../../common/http-error.js";
 
@@ -64,14 +64,15 @@ export const documentStorageDriver = () => {
 };
 export const putDocumentObject = async (key:string,buffer:Buffer,contentType:string):Promise<void> => {
   if(!validStorageKey(key)) throw new HttpError(400,"Invalid document storage key");
+  if(buffer.length===0 || buffer.length>MAX_FILE_BYTES) throw new HttpError(413,"Document files are limited to 25 MB");
   if(documentStorageDriver()==="s3"){const response=await signedS3Request("PUT",key,buffer,contentType);if(!response.ok)throw new HttpError(503,"S3 document storage rejected the upload");return;}
   const directory=documentStorageDirectory();await mkdir(directory,{recursive:true,mode:0o700});
   try{await writeFile(join(directory,key),buffer,{flag:"wx",mode:0o600});}catch{throw new HttpError(503,"Private document storage could not persist the upload");}
 };
 export const readDocumentObject = async (key:string):Promise<Buffer> => {
   if(!validStorageKey(key))throw new HttpError(404,"Stored document file is unavailable");
-  if(documentStorageDriver()==="s3"){const response=await signedS3Request("GET",key);if(response.status===404)throw new HttpError(404,"Stored document file is unavailable");if(!response.ok)throw new HttpError(503,"S3 document storage could not read the document");const bytes=Buffer.from(await response.arrayBuffer());if(bytes.length>MAX_FILE_BYTES)throw new HttpError(503,"Stored document exceeds the configured size limit");return bytes;}
-  try{return await readFile(join(documentStorageDirectory(),key));}catch{throw new HttpError(404,"Stored document file is unavailable");}
+  if(documentStorageDriver()==="s3"){const response=await signedS3Request("GET",key);if(response.status===404)throw new HttpError(404,"Stored document file is unavailable");if(!response.ok)throw new HttpError(503,"S3 document storage could not read the document");const declaredLength=Number(response.headers.get("content-length")??"0");if(declaredLength>MAX_FILE_BYTES)throw new HttpError(503,"Stored document exceeds the configured size limit");const reader=response.body?.getReader();if(!reader)throw new HttpError(503,"S3 document response was empty");const chunks:Uint8Array[]=[];let total=0;while(true){const part=await reader.read();if(part.done)break;total+=part.value.length;if(total>MAX_FILE_BYTES){await reader.cancel();throw new HttpError(503,"Stored document exceeds the configured size limit");}chunks.push(part.value);}return Buffer.concat(chunks,total);}
+  try{const path=join(documentStorageDirectory(),key);const metadata=await stat(path);if(metadata.size>MAX_FILE_BYTES)throw new HttpError(503,"Stored document exceeds the configured size limit");return await readFile(path);}catch(error){if(error instanceof HttpError)throw error;throw new HttpError(404,"Stored document file is unavailable");}
 };
 export const deleteDocumentObject = async (key:string):Promise<void> => {
   if(!validStorageKey(key))return;
