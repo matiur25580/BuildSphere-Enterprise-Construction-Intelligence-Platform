@@ -91,7 +91,7 @@ export const createWorkItem = asyncHandler(async (request: Request, response: Re
   const item = await WorkItem.create({
     ...input, parentId: input.parentId || null, organizationId: auth.organizationId, projectId,
   });
-  if (input.assignedUserId) await publishProjectEventSafely({ organizationId: auth.organizationId, projectId, actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(item._id), summary: `Work item assigned: ${item.title}`, recipientIds: [input.assignedUserId] });
+  if (input.assignedUserId) await publishProjectEventSafely({ organizationId: auth.organizationId, projectId: String(projectId), actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(item._id), summary: `Work item assigned: ${item.title}`, recipientIds: [input.assignedUserId] });
   response.status(201).json({ success: true, data: item });
 });
 
@@ -119,6 +119,6 @@ export const updateWorkItem = asyncHandler(async (request: Request, response: Re
   if (input.status === "completed" && input.progress === undefined) existing.progress = 100;
   await existing.save();
   const nextAssignee = existing.assignedUserId ? String(existing.assignedUserId) : null;
-  if (nextAssignee && nextAssignee !== previousAssignee) await publishProjectEventSafely({ organizationId: auth.organizationId, projectId: request.params.projectId, actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(existing._id), summary: `Work item assigned: ${existing.title}`, recipientIds: [nextAssignee] });
+  if (nextAssignee && nextAssignee !== previousAssignee) await publishProjectEventSafely({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "tasks.assigned", targetType: "work_item", targetId: String(existing._id), summary: `Work item assigned: ${existing.title}`, recipientIds: [nextAssignee] });
   response.json({ success: true, data: existing });
 });
