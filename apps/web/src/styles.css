@@ -195,3 +195,25 @@ form input::placeholder { color: #64748b; }
 .member-add-form { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #26394d; }
 .member-add-form select { min-width: 190px; flex: 1; padding: 10px; border: 1px solid #344a60; border-radius: 6px; background: #101d2c; color: #dbe6ef; font-size: 12px; }
 .member-add-form .primary-button { padding: 9px 14px; font-size: 11px; }
+
+
+/* Phase 13 organization administration */
+.organization-panel { width:min(100%,980px); }
+.organization-notice { display:flex; align-items:center; gap:10px; margin:20px 0; padding:14px 16px; border:1px solid #2b4053; border-radius:9px; background:#142638; color:#9badc0; font-size:11px; }
+.organization-notice strong { color:#68d5b8; font:800 23px Manrope,sans-serif; }
+.organization-add-form { display:grid; grid-template-columns:minmax(0,1fr) 210px auto; align-items:end; gap:12px; margin:20px 0; padding:17px; border:1px solid #2a3d51; border-radius:9px; background:#132338; }
+.organization-add-form>div { display:flex; flex-direction:column; gap:7px; }
+.organization-add-form label { color:#b8c6d7; font-size:10px; font-weight:600; }
+.organization-add-form input,.organization-add-form select,.organization-member-controls select { min-width:0; padding:10px; border:1px solid #344a60; border-radius:6px; background:#101d2c; color:#dbe6ef; font-size:11px; }
+.organization-add-form .primary-button { min-height:37px; }
+.organization-success { padding:10px 12px; border:1px solid #286454; border-radius:6px; background:#15352f; color:#9ce2ce; font-size:11px; }
+.organization-member-list { display:flex; flex-direction:column; gap:8px; }
+.organization-member-row { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:14px 15px; border:1px solid #2a3d51; border-radius:8px; background:#111f30; }
+.organization-member-identity { display:flex; min-width:0; flex-direction:column; gap:4px; }
+.organization-member-identity strong { color:#e0eaf4; font-size:12px; }
+.organization-member-identity small { color:#8599b0; font-size:9px; overflow-wrap:anywhere; }
+.organization-member-controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:7px; }
+.organization-member-controls select { max-width:150px; }
+.organization-member-controls select:disabled { opacity:.6; }
+.organization-member-controls .ghost-button { padding:8px 11px; font-size:10px; }
+@media(max-width:760px) { .organization-add-form { grid-template-columns:1fr; }.organization-member-row { align-items:flex-start; flex-direction:column; }.organization-member-controls { width:100%; justify-content:flex-start; }.organization-member-controls select { flex:1; max-width:none; }.organization-panel { padding:18px; } }
