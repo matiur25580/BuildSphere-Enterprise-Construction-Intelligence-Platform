@@ -1,6 +1,6 @@
 # Local Infrastructure
 
-Docker Compose services will be added here as the API, MongoDB, Redis, and object-storage workflows are implemented. Keep secrets in local environment files; never commit credentials.
+Use `docker compose -f infrastructure/docker/compose.yaml up -d` to start the local MongoDB 7 single-node replica set and ClamAV daemon. The MongoDB health check initialises `rs0` with a host-reachable address; the sample `.env` connects through `127.0.0.1:27017`. The Compose file is for local development only and does not enable MongoDB authentication or production-grade persistence policies. Keep secrets in local environment files; never commit credentials.
 
 
 ## Secure document storage (Phase 14)
