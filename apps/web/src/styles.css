@@ -217,3 +217,14 @@ form input::placeholder { color: #64748b; }
 .organization-member-controls select:disabled { opacity:.6; }
 .organization-member-controls .ghost-button { padding:8px 11px; font-size:10px; }
 @media(max-width:760px) { .organization-add-form { grid-template-columns:1fr; }.organization-member-row { align-items:flex-start; flex-direction:column; }.organization-member-controls { width:100%; justify-content:flex-start; }.organization-member-controls select { flex:1; max-width:none; }.organization-panel { padding:18px; } }
+
+
+/* Phase 14 secure document control */
+.document-upload-action { display:inline-flex; align-items:center; gap:8px; width:max-content; max-width:100%; padding:8px 11px; border:1px solid #3b5870; border-radius:7px; color:#b9d8ec; background:#15283a; font-size:10px; font-weight:650; cursor:pointer; }
+.document-upload-action input { max-width:190px; color:#9fb3c7; font-size:9px; }
+.document-version { display:block; margin-top:5px; }
+.document-version .record-action { margin:0; }
+.delivery-form details { padding:10px 12px; border:1px solid #2b4054; border-radius:7px; color:#a9bdd0; font-size:10px; }
+.delivery-form details summary { cursor:pointer; color:#b8d9e9; font-weight:650; }
+.delivery-form details label { margin-top:10px; }
+.delivery-form input[type="file"] { width:100%; padding:9px; border:1px dashed #45627a; border-radius:7px; background:#101f30; color:#a9bdd0; font-size:10px; }
