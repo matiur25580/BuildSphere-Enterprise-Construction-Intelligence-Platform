@@ -1,7 +1,7 @@
 import "dotenv/config";
 import mongoose from "mongoose";
 import app from "./app.js";
-import { startCollaborationOutboxWorker } from "./modules/collaboration/collaboration.service.js";
+import { configureCollaborationTransactions, startCollaborationOutboxWorker } from "./modules/collaboration/collaboration.service.js";
 
 const port = Number(process.env.PORT) || 5000;
 const mongoUri = process.env.MONGODB_URI;
@@ -10,7 +10,8 @@ if (!mongoUri) throw new Error("MONGODB_URI must be configured");
 
 const start = async () => {
   await mongoose.connect(mongoUri);
-  console.info("BuildSphere connected to MongoDB");
+  const transactionsSupported = await configureCollaborationTransactions();
+  console.info(`BuildSphere connected to MongoDB (collaboration transactions: ${transactionsSupported ? "enabled" : "non-atomic fallback"})`);
   const stopOutboxWorker = startCollaborationOutboxWorker();
   const server = app.listen(port, () => {
     console.info(`BuildSphere API listening on port ${port}`);
