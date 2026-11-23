@@ -64,21 +64,20 @@ app.get("/api/v1/health", (_request, response) => {
 });
 
 app.get("/api/v1/ready", async (_request, response) => {
-  const collaborationTransactions = getCollaborationTransactionStatus();
-  const clamav = await checkClamAvHealth();
   const readiness = await evaluateReadiness({
     mongodbReady: mongoose.connection.readyState === 1,
+    collaborationTransactionsReady: getCollaborationTransactionStatus() === "enabled",
     documentStorageCheck: documentStorageHealthCheck,
+    clamavCheck: checkClamAvHealth,
   });
-  const ready = readiness.ready && collaborationTransactions === "enabled" && clamav;
-  response.status(ready ? 200 : 503).json({
-    success: ready,
+  response.status(readiness.ready ? 200 : 503).json({
+    success: readiness.ready,
     service: "BuildSphere API",
-    status: ready ? "ready" : "not_ready",
+    status: readiness.ready ? "ready" : "not_ready",
     dependencies: {
       mongodb: readiness.mongodb,
-      collaborationOutboxTransactions: collaborationTransactions,
-      clamav: clamav ? "available" : "unavailable",
+      collaborationOutboxTransactions: readiness.collaborationOutboxTransactions,
+      clamav: readiness.clamav,
       documentStorage: readiness.documentStorage,
     },
     timestamp: new Date().toISOString(),
