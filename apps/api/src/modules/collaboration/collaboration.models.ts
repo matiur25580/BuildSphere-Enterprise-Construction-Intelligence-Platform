@@ -8,6 +8,7 @@ const eventTypes = [
   "coordination.submittal_created", "coordination.submittal_submitted", "coordination.submittal_reviewed",
   "documents.created", "documents.version_added", "documents.approval_changed",
   "documents.retention_policy_updated", "documents.legal_hold_placed", "documents.legal_hold_released",
+  "documents.purge_request_created", "documents.purge_request_approved", "documents.purge_manifest_prepared",
   "bim.model_registered", "bim.issue_created", "bim.issue_status_changed",
 ] as const;
 
