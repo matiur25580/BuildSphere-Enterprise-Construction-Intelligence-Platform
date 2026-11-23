@@ -74,6 +74,33 @@ test("suspended organizations cannot use previously issued access tokens", async
   });
   assert.equal(response.status, 401);
   assert.equal((await response.json() as { message: string }).message, "Account or organization access is no longer active");
+
+  const activeOrganization = await Organization.create({ name: "Available Tenant", slug: "available-tenant", createdBy: user._id });
+  await Membership.create({ userId: user._id, organizationId: activeOrganization._id, role: "member", status: "active" });
+  const refreshToken = "suspended-org-recovery-refresh";
+  await RefreshSession.create({
+    userId: user._id,
+    organizationId: organization._id,
+    familyId: "suspended-org-recovery-family",
+    tokenHash: hashToken(refreshToken),
+    expiresAt: new Date(Date.now() + 60_000),
+  });
+  const listed = await fetch(baseUrl + "/api/v1/auth/organizations", {
+    headers: { authorization: "Bearer " + accessToken(String(user._id), String(organization._id), "owner") },
+  });
+  assert.equal(listed.status, 200);
+  const listBody = await listed.json() as { data: { id: string }[] };
+  assert.deepEqual(listBody.data.map((item) => item.id), [String(activeOrganization._id)]);
+  const switched = await fetch(baseUrl + "/api/v1/auth/switch-organization", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer " + accessToken(String(user._id), String(organization._id), "owner"),
+      cookie: "buildsphere_refresh=" + refreshToken,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ organizationId: String(activeOrganization._id) }),
+  });
+  assert.equal(switched.status, 200);
 });
 
 test("replayed rotated refresh tokens revoke every active token in their family", async () => {
@@ -84,8 +111,8 @@ test("replayed rotated refresh tokens revoke every active token in their family"
   const currentToken = "current-refresh-token-in-family";
   const familyId = "refresh-family-replay-test";
   await RefreshSession.create([
-    { userId: user._id, familyId, tokenHash: hashToken(oldToken), expiresAt: new Date(Date.now() + 60_000), revokedAt: new Date(), replacedByTokenHash: hashToken(currentToken) },
-    { userId: user._id, familyId, tokenHash: hashToken(currentToken), expiresAt: new Date(Date.now() + 60_000), revokedAt: null },
+    { userId: user._id, organizationId: organization._id, familyId, tokenHash: hashToken(oldToken), expiresAt: new Date(Date.now() + 60_000), revokedAt: new Date(), replacedByTokenHash: hashToken(currentToken) },
+    { userId: user._id, organizationId: organization._id, familyId, tokenHash: hashToken(currentToken), expiresAt: new Date(Date.now() + 60_000), revokedAt: null },
   ]);
   const response = await fetch(baseUrl + "/api/v1/auth/refresh", {
     method: "POST",
@@ -112,6 +139,7 @@ test("members can list active organizations and switch session context securely"
   const refreshToken = "multi-tenant-refresh-token";
   await RefreshSession.create({
     userId: user._id,
+    organizationId: firstOrganization._id,
     familyId: "multi-tenant-refresh-family",
     tokenHash: hashToken(refreshToken),
     expiresAt: new Date(Date.now() + 60_000),
@@ -147,6 +175,20 @@ test("members can list active organizations and switch session context securely"
   assert.equal(me.data.organization.id, String(secondOrganization._id));
   assert.equal(me.data.organization.role, "admin");
 
+  const rotatedCookie = switchResponse.headers.get("set-cookie")?.split(";")[0];
+  assert.ok(rotatedCookie);
+  const refreshed = await fetch(baseUrl + "/api/v1/auth/refresh", {
+    method: "POST",
+    headers: { cookie: rotatedCookie },
+  });
+  assert.equal(refreshed.status, 200);
+  const refreshedBody = await refreshed.json() as { data: { accessToken: string } };
+  const refreshedMe = await fetch(baseUrl + "/api/v1/auth/me", {
+    headers: { authorization: "Bearer " + refreshedBody.data.accessToken },
+  });
+  const refreshedMeBody = await refreshedMe.json() as { data: { organization: { id: string } } };
+  assert.equal(refreshedMeBody.data.organization.id, String(secondOrganization._id));
+
   const cookie = switchResponse.headers.get("set-cookie")?.split(";")[0];
   assert.ok(cookie);
   const invalidSwitch = await fetch(baseUrl + "/api/v1/auth/switch-organization", {
@@ -159,6 +201,19 @@ test("members can list active organizations and switch session context securely"
     body: JSON.stringify({ organizationId: String(suspendedOrganization._id) }),
   });
   assert.equal(invalidSwitch.status, 403);
+});
+
+test("role changes invalidate access tokens carrying stale authorization claims", async () => {
+  const user = await User.create({ name: "Role Change User", email: "role-change@example.test", passwordHash: "test-hash" });
+  const organization = await Organization.create({ name: "Role Change Tenant", slug: "role-change-tenant", createdBy: user._id });
+  const membership = await Membership.create({ userId: user._id, organizationId: organization._id, role: "admin", status: "active" });
+  const staleToken = accessToken(String(user._id), String(organization._id), "admin");
+  membership.role = "viewer";
+  await membership.save();
+  const response = await fetch(baseUrl + "/api/v1/auth/me", {
+    headers: { authorization: "Bearer " + staleToken },
+  });
+  assert.equal(response.status, 401);
 });
 
 test("readiness reports critical dependency health and fails closed when ClamAV is unavailable", async () => {
