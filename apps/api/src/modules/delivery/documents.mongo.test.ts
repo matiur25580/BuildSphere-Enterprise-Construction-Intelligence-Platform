@@ -192,6 +192,7 @@ test("private document upload and download enforce scan, tenant and project-memb
   const uploadStatus = await fetch(statusUrlForUpload, { headers: { authorization: `Bearer ${ownerToken}` } });
   assert.equal(uploadStatus.status, 200);
   assert.deepEqual((await uploadStatus.json() as { data: { receivedParts: unknown[] } }).data.receivedParts, []);
+  assert.equal((await fetch(statusUrlForUpload, { headers: { authorization: `Bearer ${viewerToken}` } })).status, 403);
   const partUrl = `${baseUrl}/api/v1/projects/${project._id}/delivery/documents/${document._id}/uploads/${uploadSessionBody.data.uploadId}/parts/1`;
   assert.equal((await fetch(partUrl, { method: "PUT", headers: { authorization: `Bearer ${ownerToken}`, "content-type": "application/octet-stream", "x-part-sha256": "0".repeat(64) }, body: resumableBytes })).status, 422);
   const partHeaders = { authorization: `Bearer ${ownerToken}`, "content-type": "application/octet-stream", "x-part-sha256": resumableSha };
