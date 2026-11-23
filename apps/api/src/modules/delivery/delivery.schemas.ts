@@ -1,9 +1,9 @@
 import { z } from "zod";
 const reference = z.string().trim().min(2).max(48).regex(/^[a-zA-Z0-9._/-]+$/);
-const futureDate = z.coerce.date();
+const futureDate = z.preprocess((value) => value === "" ? null : value, z.coerce.date().nullable().optional());
 export const createInspectionSchema = z.object({ reference, title: z.string().trim().min(2).max(160), area: z.string().max(160).optional(), inspectionDate: z.coerce.date(), inspector: z.string().trim().min(2).max(120), items: z.array(z.object({ label: z.string().trim().min(2).max(240), result: z.enum(["pass", "fail", "not_applicable"]), notes: z.string().max(1000).optional() })).min(1).max(100), notes: z.string().max(2000).optional() });
 export const inspectionStatusSchema = z.object({ status: z.enum(["submitted", "accepted", "rejected"]), notes: z.string().max(2000).optional() });
-export const createNcrSchema = z.object({ reference, title: z.string().trim().min(2).max(180), description: z.string().trim().min(10).max(4000), location: z.string().max(240).optional(), severity: z.enum(["minor", "major", "critical"]).default("minor"), dueDate: futureDate.optional().nullable() });
+export const createNcrSchema = z.object({ reference, title: z.string().trim().min(2).max(180), description: z.string().trim().min(10).max(4000), location: z.string().max(240).optional(), severity: z.enum(["minor", "major", "critical"]).default("minor"), dueDate: futureDate });
 export const ncrStatusSchema = z.object({ status: z.enum(["under_review", "corrective_action", "verification", "closed"]), closureNotes: z.string().max(2000).optional() });
 export const createCapaSchema = z.object({ type: z.enum(["corrective", "preventive"]), description: z.string().trim().min(10).max(3000), owner: z.string().trim().min(2).max(120), dueDate: futureDate });
 export const capaStatusSchema = z.object({ status: z.enum(["in_progress", "completed", "verified"]), completionNotes: z.string().max(2000).optional() });
