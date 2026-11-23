@@ -151,10 +151,12 @@ export const createDocumentUpload = asyncHandler(async (request: Request, respon
 
 export const getDocumentUpload = asyncHandler(async (request: Request, response: Response) => {
   const { auth, scope } = await projectContext(request);
+  const documentId = String(request.params.documentId);
+  if (!mongoose.isValidObjectId(documentId)) throw new HttpError(404, "Document not found");
   await requireDocumentUploadManager(scope, auth.userId, auth.role);
   const uploadId = String(request.params.uploadId);
   if (!mongoose.isValidObjectId(uploadId)) throw new HttpError(404, "Upload session not found");
-  const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, createdBy: auth.userId, status: { $in: ["uploading", "completing"] } }).lean();
+  const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, documentId, createdBy: auth.userId, status: { $in: ["uploading", "completing"] } }).lean();
   if (!session) throw new HttpError(404, "Upload session not found");
   if (session.expiresAt.getTime() <= Date.now()) throw new HttpError(410, "Upload session has expired");
   response.json({ success: true, data: { uploadId: String(session._id), status: session.status, fileName: session.fileName, totalBytes: session.totalBytes, partSize: DOCUMENT_UPLOAD_PART_BYTES, expectedParts: session.expectedParts, receivedParts: session.parts.map((part) => ({ partNumber: part.partNumber, byteSize: part.byteSize, sha256: part.sha256 })), expiresAt: session.expiresAt } });
@@ -162,6 +164,8 @@ export const getDocumentUpload = asyncHandler(async (request: Request, response:
 
 export const uploadDocumentPart = asyncHandler(async (request: Request, response: Response) => {
   const { auth, scope } = await projectContext(request);
+  const documentId = String(request.params.documentId);
+  if (!mongoose.isValidObjectId(documentId)) throw new HttpError(404, "Document not found");
   await requireDocumentUploadManager(scope, auth.userId, auth.role);
   const uploadId = String(request.params.uploadId);
   if (!mongoose.isValidObjectId(uploadId)) throw new HttpError(404, "Upload session not found");
@@ -169,7 +173,7 @@ export const uploadDocumentPart = asyncHandler(async (request: Request, response
   if (!Buffer.isBuffer(request.body) || request.body.length === 0 || request.body.length > DOCUMENT_UPLOAD_PART_BYTES) throw new HttpError(400, "A non-empty upload part of at most 5 MiB is required");
   const actualSha256 = createHash("sha256").update(request.body).digest("hex");
   if (actualSha256 !== input.sha256) throw new HttpError(422, "Upload part checksum verification failed");
-  const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, createdBy: auth.userId, status: "uploading" });
+  const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, documentId, createdBy: auth.userId, status: "uploading" });
   if (!session) throw new HttpError(404, "Upload session not found");
   if (session.expiresAt.getTime() <= Date.now()) throw new HttpError(410, "Upload session has expired");
   if (input.partNumber > session.expectedParts) throw new HttpError(400, "Upload part number exceeds the expected part count");
@@ -199,11 +203,13 @@ export const uploadDocumentPart = asyncHandler(async (request: Request, response
 
 export const completeDocumentUpload = asyncHandler(async (request: Request, response: Response) => {
   const { auth, scope } = await projectContext(request);
+  const documentId = String(request.params.documentId);
+  if (!mongoose.isValidObjectId(documentId)) throw new HttpError(404, "Document not found");
   if (getCollaborationTransactionStatus() !== "enabled") throw new HttpError(503, "Resumable uploads require MongoDB replica-set or sharded-cluster transactions");
   await requireDocumentUploadManager(scope, auth.userId, auth.role);
   const uploadId = String(request.params.uploadId);
   if (!mongoose.isValidObjectId(uploadId)) throw new HttpError(404, "Upload session not found");
-  const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, createdBy: auth.userId, status: "uploading" });
+  const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, documentId, createdBy: auth.userId, status: "uploading" });
   if (!session) throw new HttpError(404, "Upload session not found");
   if (session.expiresAt.getTime() <= Date.now()) throw new HttpError(410, "Upload session has expired");
   const parts = [...session.parts].sort((a, b) => a.partNumber - b.partNumber);
@@ -258,10 +264,12 @@ export const completeDocumentUpload = asyncHandler(async (request: Request, resp
 
 export const abortDocumentUpload = asyncHandler(async (request: Request, response: Response) => {
   const { auth, scope } = await projectContext(request);
+  const documentId = String(request.params.documentId);
+  if (!mongoose.isValidObjectId(documentId)) throw new HttpError(404, "Document not found");
   await requireDocumentUploadManager(scope, auth.userId, auth.role);
   const uploadId = String(request.params.uploadId);
   if (!mongoose.isValidObjectId(uploadId)) throw new HttpError(404, "Upload session not found");
-  const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, createdBy: auth.userId, status: "uploading" });
+  const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, documentId, createdBy: auth.userId, status: "uploading" });
   if (!session) throw new HttpError(404, "Upload session not found");
   await Promise.all(session.parts.map((part) => deleteDocumentObject(part.storageKey).catch(() => undefined)));
   await DocumentUploadSession.deleteOne({ _id: session._id, ...scope, createdBy: auth.userId });
