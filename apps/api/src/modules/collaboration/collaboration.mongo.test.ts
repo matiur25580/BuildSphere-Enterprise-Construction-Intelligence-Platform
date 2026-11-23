@@ -262,6 +262,15 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   assert.equal((await call(`/api/v1/projects/${project.id}/collaboration/activity`, outsiderToken)).status, 403);
   assert.equal((await call(`/api/v1/projects/${project.id}/collaboration/activity`, inactiveToken)).status, 403);
   assert.equal((await call(`/api/v1/projects/${project.id}/collaboration/activity`, tenantBToken)).status, 404);
+  assert.equal((await call(`/api/v1/projects/${project.id}`, viewerToken)).status, 200);
+  assert.equal((await call(`/api/v1/projects/${project.id}`, outsiderToken)).status, 403);
+  assert.equal((await call(`/api/v1/projects/${project.id}`, inactiveToken)).status, 403);
+  assert.equal((await call(`/api/v1/projects/${project.id}`, tenantBToken)).status, 404);
+  assert.equal((await call(`/api/v1/projects/${project.id}`, viewerToken, "PATCH", { name: "Unauthorized rename" })).status, 403);
+  assert.equal((await call(`/api/v1/projects/${project.id}/work-items`, viewerToken, "POST", {
+    code: "TASK-DENIED", title: "Contributor cannot create schedule items", startDate: "2026-02-01", endDate: "2026-02-02",
+  })).status, 403);
+  assert.equal((await call(`/api/v1/projects/${project.id}/commercial/records`, outsiderToken)).status, 403);
   assert.equal((await call(`/api/v1/projects/${project.id}/members`, viewerToken, "POST", { userId: String(assignee._id), role: "viewer" })).status, 403);
   assert.equal((await call(`/api/v1/projects/${project.id}/members`, ownerToken, "POST", { userId: String(userB._id), role: "viewer" })).status, 404);
   assert.equal((await call(`/api/v1/projects/${project.id}/members`, ownerToken, "POST", { userId: String(invitee._id), role: "viewer" })).status, 201);
