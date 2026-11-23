@@ -34,8 +34,8 @@ const s3Config = (): S3Config => {
 };
 const signedS3Request = async (method: "PUT" | "GET" | "DELETE" | "HEAD", key?: string, body?: Buffer, contentType?: string): Promise<Response> => {
   const config = s3Config(), now = new Date();
-  const amzDate = now.toISOString().replace(/[:-]|\\.\\d{3}/g, ""), dateStamp = amzDate.slice(0, 8);
-  const basePath = config.endpoint.pathname.replace(/\\/$/, "");
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, ""), dateStamp = amzDate.slice(0, 8);
+  const basePath = config.endpoint.pathname.replace(/\/$/, "");
   const objectPath = key ? `/${awsEncode(config.bucket)}/${awsEncode(key)}` : `/${awsEncode(config.bucket)}`;
   const canonicalUri = `${basePath}${objectPath}` || "/";
   const url = new URL(config.endpoint.toString()); url.pathname = canonicalUri;
@@ -44,11 +44,15 @@ const signedS3Request = async (method: "PUT" | "GET" | "DELETE" | "HEAD", key?: 
   if (contentType) headers["content-type"] = contentType;
   if (config.sessionToken) headers["x-amz-security-token"] = config.sessionToken;
   const signedHeaders = Object.keys(headers).sort().join(";");
-  const canonicalHeaders = Object.keys(headers).sort().map(name => `${name}:${headers[name].trim()}\\n`).join("");
-  const canonicalRequest = [method, canonicalUri, "", canonicalHeaders, signedHeaders, payloadHash].join("\\n");
+  const canonicalHeaders = Object.keys(headers).sort().map(name => `${name}:${headers[name].trim()}\n`).join("");
+  const canonicalRequest = [method, canonicalUri, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
   const scope = `${dateStamp}/${config.region}/s3/aws4_request`;
-  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, scope, digest(canonicalRequest)].join("\\n");
-  const signature = createHmac("sha256", hmac(hmac(hmac(`AWS4${config.secretAccessKey}`, dateStamp), config.region), "s3").length ? hmac(hmac(hmac(`AWS4${config.secretAccessKey}`, dateStamp), config.region), "s3") : Buffer.alloc(0)).update(stringToSign).digest("hex");
+  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, scope, digest(canonicalRequest)].join("\n");
+  const dateKey = hmac(`AWS4${config.secretAccessKey}`, dateStamp);
+  const regionKey = hmac(dateKey, config.region);
+  const serviceKey = hmac(regionKey, "s3");
+  const signingKey = hmac(serviceKey, "aws4_request");
+  const signature = createHmac("sha256", signingKey).update(stringToSign).digest("hex");
   headers.authorization = `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
   const requestHeaders = new Headers(); for (const [name,value] of Object.entries(headers)) if (name !== "host") requestHeaders.set(name,value);
   try { return await fetch(url,{method,headers:requestHeaders,body:method === "PUT" ? body : undefined,signal:AbortSignal.timeout(15000)}); }
@@ -84,7 +88,7 @@ export const normalizeDocumentFile = (body: unknown, rawName: string | undefined
   if (!rawName || rawName.length > 720) throw new HttpError(400, "A valid x-file-name header is required");
   let decodedName: string;
   try { decodedName = decodeURIComponent(rawName); } catch { throw new HttpError(400, "Invalid file name encoding"); }
-  const fileName = basename(decodedName.replace(/\\/g, "/")).replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 180);
+  const fileName = basename(decodedName.replace(/\/g, "/")).replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 180);
   const extension = extname(fileName).toLowerCase();
   const expectedType = MIME_BY_EXTENSION[extension];
   if (!fileName || !expectedType || contentType?.split(";")[0].trim().toLowerCase() !== expectedType) {
