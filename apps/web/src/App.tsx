@@ -206,8 +206,8 @@ function App() {
             {switchingOrganization && <span className="org-switching">Switching…</span>}
             <button className="ghost-button" onClick={() => void signOut()}>Sign out</button>
           </div>
-          {organizationSwitchError && <p className="form-error organization-switch-error" role="alert">{organizationSwitchError}</p>}
         </header>
+        {organizationSwitchError && <p className="form-error organization-switch-error" role="alert">{organizationSwitchError}</p>}
         <section className="dashboard">
           <div className="dashboard-heading">
             <div><p className="eyebrow">PROJECT DELIVERY / OVERVIEW</p><h1>Good to see you, {session.name.split(" ")[0]}.</h1><p className="muted">Your organization's project portfolio at a glance.</p></div>
