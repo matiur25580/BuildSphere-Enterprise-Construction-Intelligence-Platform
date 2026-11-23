@@ -3,6 +3,7 @@ import { Schema, model } from "mongoose";
 const refreshSessionSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    organizationId: { type: Schema.Types.ObjectId, ref: "Organization", index: true },
     familyId: { type: String, index: true },
     tokenHash: { type: String, required: true, unique: true },
     expiresAt: { type: Date, required: true, index: true },
