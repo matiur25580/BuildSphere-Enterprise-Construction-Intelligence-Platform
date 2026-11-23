@@ -91,7 +91,7 @@ test("inventory removes only old unreferenced objects and preserves assets and r
     putDocumentObject(referencedKey, bytes, "application/octet-stream"),
   ]);
   const staleDate = new Date(Date.now() - 48 * 60 * 60 * 1000);
-  await utimes(join(storageDirectory, staleOrphanKey), staleDate, staleDate);
+  await Promise.all([utimes(join(storageDirectory, staleOrphanKey), staleDate, staleDate), utimes(join(storageDirectory, referencedKey), staleDate, staleDate)]);
   await DocumentAsset.create({
     organizationId, projectId, documentId, version: 1, storageKey: referencedKey, fileName: "retained.pdf",
     contentType: "application/pdf", byteSize: bytes.length, sha256: "c".repeat(64), scanStatus: "clean", uploadedBy,
