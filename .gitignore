@@ -10,3 +10,4 @@ coverage/
 .idea/
 *.log
 npm-debug.log*
+\n# Private local document binaries\n/var/private-documents/\n
