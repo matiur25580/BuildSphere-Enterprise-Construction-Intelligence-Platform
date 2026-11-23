@@ -16,7 +16,7 @@ const context = async (request: Request) => {
   const projectId = String(request.params.projectId);
   if (!mongoose.isValidObjectId(projectId)) throw new HttpError(404, "Project not found");
   const scope = { organizationId: request.auth.organizationId, projectId };
-  const project = await Project.findOne(scope).select("_id");
+  const project = await Project.findOne({ _id: projectId, organizationId: request.auth.organizationId }).select("_id");
   if (!project) throw new HttpError(404, "Project not found");
   const member = await ProjectMembership.findOne({ ...scope, userId: request.auth.userId, status: "active" }).select("role").lean();
   if (!member) throw new HttpError(403, "Active project membership is required");
