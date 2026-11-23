@@ -39,7 +39,7 @@ before(async () => {
     let scanned = Buffer.alloc(0);
     let commandRead = false;
     socket.on("data", (chunk) => {
-      data = Buffer.concat([data, chunk]);
+      data = Buffer.concat([data, Buffer.from(chunk)]);
       if (!commandRead) {
         const terminator = data.indexOf(0);
         if (terminator < 0) return;

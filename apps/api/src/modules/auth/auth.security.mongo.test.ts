@@ -40,7 +40,7 @@ before(async () => {
 
   clamdServer = createServer((socket) => {
     socket.on("data", (chunk) => {
-      if (chunk.includes(Buffer.from("PING"))) socket.end(Buffer.from("PONG\0"));
+      if (chunk.toString("utf8").includes("PING")) socket.end(Buffer.from("PONG\0"));
     });
   });
   await new Promise<void>((resolve) => clamdServer!.listen(0, "127.0.0.1", resolve));
