@@ -6,7 +6,7 @@ import { assertDocumentStorageConfigured } from "./modules/delivery/document-sto
 
 const port = Number(process.env.PORT) || 5000;
 const mongoUri = process.env.MONGODB_URI;
-const shutdownTimeoutMs = Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10_000;
+const shutdownTimeoutMs = Math.min(120_000, Math.max(1_000, Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10_000));
 
 if (!mongoUri) throw new Error("MONGODB_URI must be configured");
 
