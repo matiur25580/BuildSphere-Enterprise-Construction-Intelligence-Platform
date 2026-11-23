@@ -4,7 +4,7 @@
 
 BuildSphere is an AI-assisted construction operations platform designed to connect project planning, commercial control, field execution, quality, safety, and delivery intelligence in one workspace.
 
-> Project status: active development. The foundation, authentication, project portfolio, commercial management, and first field operations workflows are implemented; broader capabilities are being delivered incrementally.
+> Project status: active development. The foundation, authentication, project portfolio, commercial management, field operations, and first quality/safety/document-control workflows are implemented; broader capabilities are being delivered incrementally.
 
 ## Product direction
 
@@ -120,6 +120,12 @@ This is an operational register, not a statutory accounting ledger. Decimal prec
 Implemented: project-scoped contractor registry, contractor contact/status updates, day/night daily site reports, workforce-by-trade and contractor logging, equipment quantity and hours, weather, progress, safety observations, delays/issues, HTTPS photo evidence references, optional site/photo coordinates, and field summary metrics. See [Field Operations API](docs/api/field-operations.md).
 
 Not yet implemented: direct photo uploads/object storage, offline-first sync, payroll, equipment telemetry, formal safety incident workflows, and auditable report amendments.
+
+## Quality, safety, documents and approvals milestone scope
+
+Implemented: project-scoped quality inspections with checklist outcomes and review states; non-conformance reports with corrective/preventive action ownership, due dates and verification gates; hazard, near-miss and incident registers; RFI submission and response; submittal review outcomes; controlled project document records with numbered versions and approval history. All operations derive tenant scope from authenticated membership and validate project ownership. See [Quality, Safety, Documents and Approvals API](docs/api/quality-safety-documents.md).
+
+Not yet implemented: binary uploads/object storage, malware scanning, immutable/tamper-evident audit ledger, notification/escalation, electronic signatures, offline workflows, regulatory incident submissions, and full integration-test infrastructure. Treat file URLs as references only; they are not proof of secure file access.
 
 ## Authentication milestone scope
 
