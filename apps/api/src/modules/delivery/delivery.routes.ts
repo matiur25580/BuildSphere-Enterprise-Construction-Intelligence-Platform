@@ -1,10 +1,11 @@
 import express, { Router } from "express";
-import { authenticate, requireRoles } from "../../middleware/authenticate.js";
+import { authenticate } from "../../middleware/authenticate.js";
+import { requireProjectAccess, requireProjectRoles } from "../../middleware/project-access.js";
 import * as controller from "./delivery.controller.js";
 
 const router = Router({ mergeParams: true });
-const managers = requireRoles("owner", "admin", "project_manager");
-router.use(authenticate);
+const managers = requireProjectRoles("project_manager");
+router.use(authenticate, requireProjectAccess());
 router.get("/summary", controller.getDeliverySummary);
 router.get("/inspections", controller.listInspections);
 router.post("/inspections", managers, controller.createInspection);
