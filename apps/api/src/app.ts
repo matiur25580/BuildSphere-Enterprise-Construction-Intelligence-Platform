@@ -19,7 +19,7 @@ import notificationRoutes from "./modules/collaboration/notification.routes.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { createRequestId, isAllowedOrigin, parseAllowedOrigins, parseTrustProxy } from "./config/security.js";
 import { getCollaborationTransactionStatus } from "./modules/collaboration/collaboration.service.js";
-import { checkClamAvHealth, documentStorageDirectory } from "./modules/delivery/document-storage.js";
+import { checkClamAvHealth, documentStorageDirectory, documentStorageHealthCheck } from "./modules/delivery/document-storage.js";
 
 const app = express();
 const allowedOrigins = parseAllowedOrigins(process.env.CLIENT_URL);
@@ -76,6 +76,13 @@ app.get("/api/v1/ready", async (_request, response) => {
     documentStorage = false;
   }
   const clamav = await checkClamAvHealth();
+  let documentStorage = false;
+  try {
+    await documentStorageHealthCheck();
+    documentStorage = true;
+  } catch {
+    documentStorage = false;
+  }
   const ready = mongodb && collaborationTransactions === "enabled" && clamav && documentStorage;
   response.status(ready ? 200 : 503).json({
     success: ready,
@@ -85,7 +92,7 @@ app.get("/api/v1/ready", async (_request, response) => {
       mongodb: mongodb ? "connected" : "disconnected",
       collaborationOutboxTransactions: collaborationTransactions,
       clamav: clamav ? "available" : "unavailable",
-      documentStorage: documentStorage ? "writable" : "unavailable",
+      documentStorage: documentStorage ? "available" : "unavailable",
     },
     timestamp: new Date().toISOString(),
   });

@@ -2,6 +2,7 @@ import "dotenv/config";
 import mongoose from "mongoose";
 import app from "./app.js";
 import { configureCollaborationTransactions, startCollaborationOutboxWorker } from "./modules/collaboration/collaboration.service.js";
+import { assertDocumentStorageConfigured } from "./modules/delivery/document-storage.js";
 
 const port = Number(process.env.PORT) || 5000;
 const mongoUri = process.env.MONGODB_URI;
@@ -9,6 +10,7 @@ const mongoUri = process.env.MONGODB_URI;
 if (!mongoUri) throw new Error("MONGODB_URI must be configured");
 
 const start = async () => {
+  assertDocumentStorageConfigured();
   await mongoose.connect(mongoUri);
   const transactionsSupported = await configureCollaborationTransactions();
   console.info(`BuildSphere connected to MongoDB (collaboration transactions: ${transactionsSupported ? "enabled" : "non-atomic fallback"})`);

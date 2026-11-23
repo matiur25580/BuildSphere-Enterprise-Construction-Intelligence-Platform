@@ -1,8 +1,10 @@
 import { createConnection } from "node:net";
+import { constants } from "node:fs";
+import { access } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { basename, extname, join } from "node:path";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { HttpError } from "../../common/http-error.js";
 
 const MIME_BY_EXTENSION: Record<string, string> = { ".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".ifc": "application/ifc" };
@@ -85,6 +87,43 @@ const provider = () => {
   return "local";
 };
 export const documentStorageDirectory = () => process.env.DOCUMENT_STORAGE_DIR ?? "/var/lib/buildsphere/documents";
+
+/** Validate required storage settings before the API begins accepting traffic. */
+export const assertDocumentStorageConfigured = (): void => {
+  const mode = provider();
+  if (mode === "local") return;
+  if (mode === "s3") {
+    bucket();
+    client();
+    return;
+  }
+  throw new HttpError(503, "DOCUMENT_STORAGE_PROVIDER must be local or s3");
+};
+
+/** Check the configured storage backend for readiness without exposing credentials. */
+export const documentStorageHealthCheck = async (): Promise<void> => {
+  const mode = provider();
+  if (mode === "local") {
+    const directory = documentStorageDirectory();
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    try {
+      await access(directory, constants.R_OK | constants.W_OK);
+    } catch {
+      throw new HttpError(503, "Local document storage is not readable and writable");
+    }
+    return;
+  }
+  if (mode === "s3") {
+    try {
+      await client().send(new HeadBucketCommand({ Bucket: bucket() }));
+    } catch {
+      throw new HttpError(503, "S3 document storage is unavailable or misconfigured");
+    }
+    return;
+  }
+  throw new HttpError(503, "DOCUMENT_STORAGE_PROVIDER must be local or s3");
+};
+
 const bucket = () => { const value = process.env.DOCUMENT_S3_BUCKET?.trim(); if (!value) throw new HttpError(503, "DOCUMENT_S3_BUCKET is required"); return value; };
 const client = () => {
   if (s3Client) return s3Client;
