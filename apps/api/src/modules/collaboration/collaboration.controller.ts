@@ -5,6 +5,7 @@ import { HttpError } from "../../common/http-error.js";
 import { Project } from "../projects/project.model.js";
 import { ProjectMembership } from "../projects/project-membership.model.js";
 import { Activity, Notification } from "./collaboration.models.js";
+import { CollaborationOutbox } from "./outbox.model.js";
 import { notificationReadSchema, paginationSchema } from "./collaboration.schemas.js";
 import { notificationOwnerScope, projectActivityScope } from "./collaboration.service.js";
 
@@ -56,4 +57,29 @@ export const markNotificationsRead = asyncHandler(async (request: Request, respo
     readAt: null,
   }, { $set: { readAt: new Date() } });
   response.json({ success: true, data: { modified: result.modifiedCount } });
+});
+
+
+export const listFailedOutboxEvents = asyncHandler(async (request: Request, response: Response) => {
+  const context = auth(request);
+  const projectId = String(request.params.projectId);
+  if (!mongoose.isValidObjectId(projectId) || !await Project.exists({ _id: projectId, organizationId: context.organizationId })) throw new HttpError(404, "Project not found");
+  const items = await CollaborationOutbox.find({ organizationId: context.organizationId, projectId, status: "failed" })
+    .select("_id eventType targetType targetId summary attempts lastError replayCount createdAt updatedAt")
+    .sort({ updatedAt: -1 }).limit(50).lean();
+  response.json({ success: true, data: items });
+});
+
+export const replayFailedOutboxEvent = asyncHandler(async (request: Request, response: Response) => {
+  const context = auth(request);
+  const projectId = String(request.params.projectId);
+  const eventId = String(request.params.eventId);
+  if (!mongoose.isValidObjectId(projectId) || !mongoose.isValidObjectId(eventId) || !await Project.exists({ _id: projectId, organizationId: context.organizationId })) throw new HttpError(404, "Outbox event not found");
+  const event = await CollaborationOutbox.findOneAndUpdate(
+    { _id: eventId, organizationId: context.organizationId, projectId, status: "failed" },
+    { $set: { status: "pending", attempts: 0, nextAttemptAt: new Date(), leaseExpiresAt: null, leaseToken: null, lastError: "", lastReplayedAt: new Date(), lastReplayedBy: context.userId }, $inc: { replayCount: 1 } },
+    { new: true },
+  ).select("_id eventType summary status attempts replayCount lastReplayedAt");
+  if (!event) throw new HttpError(404, "Failed outbox event not found");
+  response.json({ success: true, data: event });
 });
