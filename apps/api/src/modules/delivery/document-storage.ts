@@ -41,7 +41,7 @@ export const scanDocumentWithClamAv = async (buffer: Buffer): Promise<void> => {
     socket.on("error", () => finish(new HttpError(503, "Document malware scanner is unavailable")));
     socket.on("data", (chunk: Buffer) => { response += chunk.toString("utf8"); if (response.includes("FOUND")) finish(new HttpError(422, "Malware was detected; the document was rejected")); else if (response.includes("OK")) finish(); else if (response.length > 4096) finish(new HttpError(503, "Unexpected malware scanner response")); });
     socket.on("connect", () => {
-      socket.write(Buffer.from("zINSTREAM\\0", "binary"));
+      socket.write(Buffer.from("zINSTREAM\0", "binary"));
       for (let offset = 0; offset < buffer.length; offset += 64 * 1024) {
         const chunk = buffer.subarray(offset, Math.min(offset + 64 * 1024, buffer.length));
         const header = Buffer.alloc(4); header.writeUInt32BE(chunk.length, 0); socket.write(header); socket.write(chunk);
