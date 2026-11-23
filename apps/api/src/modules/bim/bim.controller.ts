@@ -105,7 +105,7 @@ export const updateBimIssue = asyncHandler(async (request: Request, response: Re
   item.history.push({ status: input.status, comment: input.comment, actorId: new mongoose.Types.ObjectId(auth.userId), actedAt: new Date() });
   await runProjectMutationWithEvent({
     organizationId: auth.organizationId, projectId, actorId: auth.userId,
-    eventType: "bim.issue_status_changed", targetType: "bim_issue", targetId: item._id,
+    eventType: "bim.issue_status_changed", targetType: "bim_issue", targetId: String(item._id),
     summary: `BIM issue ${item.reference} moved to ${input.status}`,
   }, (session) => item.save(session ? { session } : {}));
   response.json({ success: true, data: item });
