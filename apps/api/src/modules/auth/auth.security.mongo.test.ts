@@ -54,7 +54,7 @@ before(async () => {
   await new Promise<void>((resolve) => httpServer!.once("listening", resolve));
   const serverAddress = httpServer.address();
   assert.ok(serverAddress && typeof serverAddress !== "string");
-  baseUrl = \`http://127.0.0.1:\${serverAddress.port}\`;
+  baseUrl = "http://127.0.0.1:" + serverAddress.port;
 });
 
 after(async () => {
@@ -69,8 +69,8 @@ test("suspended organizations cannot use previously issued access tokens", async
   const user = await User.create({ name: "Suspended Tenant User", email: "suspended-tenant@example.test", passwordHash: "test-hash" });
   const organization = await Organization.create({ name: "Suspended Tenant", slug: "suspended-tenant", createdBy: user._id, status: "suspended" });
   await Membership.create({ userId: user._id, organizationId: organization._id, role: "owner", status: "active" });
-  const response = await fetch(\`\${baseUrl}/api/v1/auth/me\`, {
-    headers: { authorization: \`Bearer \${accessToken(String(user._id), String(organization._id), "owner")}\` },
+  const response = await fetch(baseUrl + "/api/v1/auth/me", {
+    headers: { authorization: "Bearer " + accessToken(String(user._id), String(organization._id), "owner") },
   });
   assert.equal(response.status, 401);
   assert.equal((await response.json() as { message: string }).message, "Account or organization access is no longer active");
@@ -87,9 +87,9 @@ test("replayed rotated refresh tokens revoke every active token in their family"
     { userId: user._id, familyId, tokenHash: hashToken(oldToken), expiresAt: new Date(Date.now() + 60_000), revokedAt: new Date(), replacedByTokenHash: hashToken(currentToken) },
     { userId: user._id, familyId, tokenHash: hashToken(currentToken), expiresAt: new Date(Date.now() + 60_000), revokedAt: null },
   ]);
-  const response = await fetch(\`\${baseUrl}/api/v1/auth/refresh\`, {
+  const response = await fetch(baseUrl + "/api/v1/auth/refresh", {
     method: "POST",
-    headers: { cookie: \`buildsphere_refresh=\${oldToken}\` },
+    headers: { cookie: "buildsphere_refresh=" + oldToken },
   });
   assert.equal(response.status, 401);
   assert.match((await response.json() as { message: string }).message, /reuse detected/i);
@@ -117,18 +117,18 @@ test("members can list active organizations and switch session context securely"
     expiresAt: new Date(Date.now() + 60_000),
   });
   const currentAccessToken = accessToken(String(user._id), String(firstOrganization._id), "owner");
-  const organizationsResponse = await fetch(\`\${baseUrl}/api/v1/auth/organizations\`, {
-    headers: { authorization: \`Bearer \${currentAccessToken}\` },
+  const organizationsResponse = await fetch(baseUrl + "/api/v1/auth/organizations", {
+    headers: { authorization: "Bearer " + currentAccessToken },
   });
   assert.equal(organizationsResponse.status, 200);
   const organizations = await organizationsResponse.json() as { data: { id: string }[] };
   assert.deepEqual(organizations.data.map((item) => item.id).sort(), [String(firstOrganization._id), String(secondOrganization._id)].sort());
 
-  const switchResponse = await fetch(\`\${baseUrl}/api/v1/auth/switch-organization\`, {
+  const switchResponse = await fetch(baseUrl + "/api/v1/auth/switch-organization", {
     method: "POST",
     headers: {
-      authorization: \`Bearer \${currentAccessToken}\`,
-      cookie: \`buildsphere_refresh=\${refreshToken}\`,
+      authorization: "Bearer " + currentAccessToken,
+      cookie: "buildsphere_refresh=" + refreshToken,
       "content-type": "application/json",
     },
     body: JSON.stringify({ organizationId: String(secondOrganization._id) }),
@@ -139,19 +139,21 @@ test("members can list active organizations and switch session context securely"
   assert.equal(switched.data.organization.role, "admin");
   assert.ok(switchResponse.headers.get("set-cookie")?.includes("buildsphere_refresh="));
 
-  const meResponse = await fetch(\`\${baseUrl}/api/v1/auth/me\`, {
-    headers: { authorization: \`Bearer \${switched.data.accessToken}\` },
+  const meResponse = await fetch(baseUrl + "/api/v1/auth/me", {
+    headers: { authorization: "Bearer " + switched.data.accessToken },
   });
   assert.equal(meResponse.status, 200);
   const me = await meResponse.json() as { data: { organization: { id: string; role: string } } };
   assert.equal(me.data.organization.id, String(secondOrganization._id));
   assert.equal(me.data.organization.role, "admin");
 
-  const invalidSwitch = await fetch(\`\${baseUrl}/api/v1/auth/switch-organization\`, {
+  const cookie = switchResponse.headers.get("set-cookie")?.split(";")[0];
+  assert.ok(cookie);
+  const invalidSwitch = await fetch(baseUrl + "/api/v1/auth/switch-organization", {
     method: "POST",
     headers: {
-      authorization: \`Bearer \${switched.data.accessToken}\`,
-      cookie: switchResponse.headers.get("set-cookie")!.split(";")[0]!,
+      authorization: "Bearer " + switched.data.accessToken,
+      cookie,
       "content-type": "application/json",
     },
     body: JSON.stringify({ organizationId: String(suspendedOrganization._id) }),
@@ -160,7 +162,7 @@ test("members can list active organizations and switch session context securely"
 });
 
 test("readiness reports critical dependency health and fails closed when ClamAV is unavailable", async () => {
-  const healthy = await fetch(\`\${baseUrl}/api/v1/ready\`);
+  const healthy = await fetch(baseUrl + "/api/v1/ready");
   assert.equal(healthy.status, 200);
   const healthyBody = await healthy.json() as { dependencies: Record<string, string> };
   assert.equal(healthyBody.dependencies.mongodb, "connected");
@@ -169,7 +171,7 @@ test("readiness reports critical dependency health and fails closed when ClamAV 
   assert.equal(healthyBody.dependencies.documentStorage, "writable");
 
   process.env.CLAMD_PORT = "1";
-  const degraded = await fetch(\`\${baseUrl}/api/v1/ready\`);
+  const degraded = await fetch(baseUrl + "/api/v1/ready");
   assert.equal(degraded.status, 503);
   const degradedBody = await degraded.json() as { dependencies: Record<string, string> };
   assert.equal(degradedBody.dependencies.clamav, "unavailable");
