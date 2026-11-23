@@ -16,6 +16,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - name: Check out source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -60,6 +61,7 @@ jobs:
           JWT_ACCESS_SECRET: buildsphere-ci-secret-that-is-at-least-32-characters-long
           MONGODB_URI: mongodb://127.0.0.1:27017/buildsphere_ci?replicaSet=rs0
       - name: Install Chromium for browser E2E
+        timeout-minutes: 15
         run: npx playwright install --with-deps chromium
       - name: Run browser end-to-end tests
         run: npm run test:e2e
