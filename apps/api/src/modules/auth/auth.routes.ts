@@ -17,5 +17,7 @@ router.post("/login", authLimiter, controller.login);
 router.post("/refresh", authLimiter, controller.refresh);
 router.post("/logout", controller.logout);
 router.get("/me", authenticate, controller.me);
+router.get("/organizations", authenticate, controller.organizations);
+router.post("/switch-organization", authenticate, authLimiter, controller.switchOrganization);
 
 export default router;
