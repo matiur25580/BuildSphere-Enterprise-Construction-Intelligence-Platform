@@ -73,8 +73,8 @@ export const updateDocumentApproval = asyncHandler(async (request: Request, resp
 export const uploadDocumentFile = asyncHandler(async (request: Request, response: Response) => {
   const { auth, scope } = await projectContext(request);
   if (getCollaborationTransactionStatus() !== "enabled") throw new HttpError(503, "Secure document uploads require MongoDB replica-set or sharded-cluster transactions");
-  const member = await ProjectMembership.exists({ ...scope, userId: auth.userId, status: "active" });
-  if (!member) throw new HttpError(403, "Active project membership is required to upload documents");
+  const member = await ProjectMembership.findOne({ ...scope, userId: auth.userId, status: "active" }).select("role").lean();
+  if (!member || (member.role !== "project_manager" && !["owner", "admin"].includes(auth.role))) throw new HttpError(403, "Project manager access is required to upload documents");
   const documentId = String(request.params.documentId);
   if (!mongoose.isValidObjectId(documentId)) throw new HttpError(404, "Document not found");
   const normalized = normalizeDocumentFile(request.body, request.header("x-file-name"), request.header("content-type"));
@@ -140,7 +140,21 @@ export const downloadDocumentFile = asyncHandler(async (request: Request, respon
   ]);
   if (!document || !asset) throw new HttpError(404, "Document file not found");
   const filePath = join(documentStorageDirectory(), asset.storageKey);
-  try { await stat(filePath); } catch { throw new HttpError(404, "Stored document file is unavailable"); }
+  try {
+    const fileStats = await stat(filePath);
+    if (fileStats.size !== asset.byteSize) throw new HttpError(503, "Stored document integrity check failed");
+    const digest = createHash("sha256");
+    await new Promise<void>((resolve, reject) => {
+      const verifier = createReadStream(filePath);
+      verifier.on("data", (chunk: Buffer) => digest.update(chunk));
+      verifier.on("end", resolve);
+      verifier.on("error", reject);
+    });
+    if (digest.digest("hex") !== asset.sha256) throw new HttpError(503, "Stored document checksum verification failed");
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    throw new HttpError(404, "Stored document file is unavailable");
+  }
   await DocumentAuditEvent.create({
     ...scope, documentId, assetId: asset._id, actorId: auth.userId,
     action: "download_authorized", fileName: asset.fileName, sha256: asset.sha256,
