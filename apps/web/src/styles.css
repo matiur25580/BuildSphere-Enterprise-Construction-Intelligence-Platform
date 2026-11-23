@@ -116,3 +116,5 @@ form input::placeholder { color: #64748b; }
 .record-row b { color:#e4edf4; font-size:11px; }.record-row span { color:#8da0b3; font-size:9px; text-transform:capitalize; }
 @media(max-width:850px) { .commercial-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }.commercial-columns { grid-template-columns:1fr; } }
 @media(max-width:480px) { .commercial-panel { padding:15px; }.commercial-metrics { grid-template-columns:1fr 1fr; }.commercial-metrics b { font-size:15px; }.record-row { align-items:flex-start; } }
+
+.record-action { padding:5px 8px; border:1px solid #386b5b; border-radius:5px; background:#17372f; color:#9ae3c8; font-size:9px; }.record-action:hover { background:#205143; }.reject-action { border-color:#70434a; background:#3a252d; color:#efb1b8; }
