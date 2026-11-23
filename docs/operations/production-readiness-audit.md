@@ -1,19 +1,21 @@
 # Production Readiness Audit
 
-**Audit date:** 2026-11-23  
+**Audit date:** 2026-11-24  
 **Audited branch:** `main`  
-**Audited commit:** `632a8e10007fa8f980ad33046bc68ae56e33887d`  
-**Method:** repository and GitHub configuration review. No production credentials, cloud account, live database, running deployment, or external scanner was available to this audit.
+**Audited commit:** `a97151476cf2b74e944e519ddc2d4a9e9af2c548`  
+**Method:** static repository/configuration review plus review of merged pull-request scope and GitHub Actions metadata. No production credentials, cloud account, live database, running deployment, or external scanner was available.
 
 ## Executive summary
 
-BuildSphere has a substantial application-security and reliability foundation: organization-scoped authorization, rotating refresh sessions, project-role middleware, private document storage, malware scanning, checksummed downloads, transaction-aware collaboration outbox processing, readiness endpoints, and an automated build/integration-test/Docker pipeline.
+BuildSphere now has a materially stronger application-security and CI foundation than the original 2026-11-23 audit snapshot. The repository history records remediation for the ClamAV readiness protocol, reproducible npm installs, health/readiness rate-limit exemptions, least-privilege and pinned CI actions, dependency/static analysis, frontend quality gates, browser E2E coverage, container health/shutdown behavior, and authentication/project-membership tenant-boundary regression tests.
 
-The repository is **not yet evidenced as production-ready**. The strongest blockers are reproducible dependency installation, live infrastructure validation, and broader security/operations assurance. A ClamAV readiness protocol defect was also found and is being corrected with a regression test in the accompanying change.
+**This repository is not yet evidenced as production-ready.** The largest remaining gaps are live infrastructure verification, deployment and rollback evidence, backup/restore and disaster-recovery proof, operational monitoring, independent security testing, and a few repository-level hardening decisions listed below.
+
+The post-merge CI and CodeQL workflows for audited commit `a97151476cf2b74e944e519ddc2d4a9e9af2c548` were still in progress when this audit update was prepared. Earlier PR validation is not a substitute for those exact post-merge runs. Recheck both workflows before treating this commit's checks as complete.
 
 Do not interpret a successful CI run as proof of production deployment, cloud durability, security certification, or compliance.
 
-## Confirmed strengths
+## Confirmed application and repository controls
 
 - Access JWTs have a 15-minute lifetime; refresh sessions use opaque random tokens, store token hashes, rotate transactionally, and revoke a token family on detected reuse.
 - Authenticated requests re-check active users, memberships, roles, and active organization state.
@@ -22,75 +24,80 @@ Do not interpret a successful CI run as proof of production deployment, cloud du
 - Document uploads validate extension, MIME type and file signatures; malware scanning fails closed; storage keys are opaque; downloads verify size/checksum and are audited.
 - Production storage configuration fails closed unless S3 is explicitly selected. S3 readiness has a bounded timeout and the adapter applies S3-managed AES256 encryption.
 - Collaboration outbox transactions can be required at startup; worker leases, fencing tokens, idempotency and bounded retries are implemented.
-- CI builds API and web workspaces, runs API unit/MongoDB integration tests, and builds the production API image.
 
-## Findings and remediation
+## Remediations recorded as merged
 
-### P1 — ClamAV readiness PING used an invalid terminator
+The following repository-level audit items have corresponding merged changes. This records code/configuration progress, not independent proof of operational effectiveness.
 
-**Evidence:** `apps/api/src/modules/delivery/document-storage.ts` sent the PING command with a literal backslash-zero sequence instead of a NUL byte. The INSTREAM upload-scanning command already uses the correct NUL terminator. The readiness function could therefore report ClamAV unavailable even while the daemon was healthy.
+| Area | Recorded remediation |
+|---|---|
+| ClamAV protocol | PING now uses the NUL-terminated protocol command, with a regression test. |
+| Dependency reproducibility | Root npm lockfile committed; CI and Docker install paths use `npm ci`. |
+| Health/readiness | Mounted health/readiness paths are exempted from the normal API rate-limit behavior and covered by tests. |
+| CI supply chain | Workflow permissions are restricted; third-party actions are SHA-pinned; Dependabot, dependency audit and CodeQL controls are present. |
+| Frontend quality | Frontend unit tests and lint/quality gates are included in CI. |
+| Browser critical paths | Playwright coverage exercises authentication/session restoration and project lifecycle flows. |
+| Container lifecycle | Docker healthcheck and bounded graceful-shutdown behavior were added. |
+| Authentication boundaries | MongoDB-backed tests cover refresh-session ownership and logout revocation. |
+| Project tenant boundaries | MongoDB-backed tests cover project-member enumeration and cross-project/cross-organization membership update isolation. |
 
-**Remediation in this change:** send the actual NUL-terminated `zPING\0` protocol command and add a TCP-level regression test that verifies the exact bytes and PONG response. Merge only after the fresh CI pipeline passes.
+Relevant merged work includes PRs #16–19, #26, and #34–38. Confirm the current workflow files and code before relying on any control in a deployment.
 
-### P1 — Dependency installation is not reproducible
+## Remaining findings and next actions
 
-**Evidence:** the audited Git tree contains no npm lockfile. CI and the Docker build use `npm install`, including the production image stage. Semver ranges can therefore resolve different transitive dependency versions between builds.
+### P1 — Live infrastructure and deployment are unverified
 
-**Remediation:** generate and commit a root npm lockfile, switch CI and both Docker stages to `npm ci` (with the appropriate production omit-dev flag in the runtime stage), and review automated dependency updates. This requires a real npm lockfile generated and validated by npm; it is not fabricated in this audit.
+**Evidence gap:** source review cannot verify actual MongoDB replica-set health, S3 bucket policy/IAM permissions, encryption and lifecycle settings, ClamAV signature freshness, secret-manager configuration, DNS/TLS, deployed image identity, or runtime behavior.
 
-### P1 — Production infrastructure is not verified
+**Next action:** use a staging environment with production-equivalent configuration. Capture evidence for startup/readiness, tenant isolation, upload/download/malware rejection, S3 permissions and migration, TLS, secrets, rollback, and deployment health. Never place credentials in Git or audit artifacts.
 
-**Evidence:** repository configuration documents required production settings, but source review cannot verify actual MongoDB replica-set health, S3 bucket policy/IAM permissions, encryption and lifecycle settings, ClamAV signature freshness, secret-manager configuration, DNS/TLS, backups, or a live deployment.
+### P1 — Backup, restore and disaster recovery are unproven
 
-**Remediation:** deploy to a staging environment first; run startup/readiness checks, upload/download/malware tests, S3 migration verification, restore drills, and a rollback exercise. Promote only after evidence is captured. Never place credentials in Git.
+**Evidence gap:** no executed backup/restore drill or approved RPO/RTO evidence was available to this review.
 
-### P2 — Readiness routes are not actually exempted from the API rate limiter
+**Next action:** document data owners, backup frequency/retention/encryption, RPO/RTO, restore procedure, and run a timed restore drill. Record outcome and remediation, not just configuration screenshots.
 
-**Evidence:** the limiter is mounted at `/api`, so Express exposes the path inside its `skip` callback without that mount prefix (for example `/v1/ready`). The current skip list compares `/ready` and `/health`. Frequent platform probes can therefore consume the normal API rate limit.
+### P1 — Independent security assurance is outstanding
 
-**Remediation:** compare the mounted paths (`/v1/health` and `/v1/ready`) or move the health routes outside the limiter; add a regression test.
+**Evidence gap:** CI tests and CodeQL do not replace a penetration test, threat-led review, or external validation of authorization and file-handling controls.
 
-### P2 — CI permissions and supply-chain controls need strengthening
+**Next action:** commission an independent application/API assessment, prioritize tenant isolation, authentication/session lifecycle, uploads/downloads, and collaboration/outbox workflows, then track all high/critical findings to verified closure.
 
-**Evidence:** the workflow does not declare an explicit least-privilege `permissions` block, uses major-version action tags, and does not run dependency vulnerability, secret, or static-analysis scans.
+### P2 — Floating container base-image tags
 
-**Remediation:** explicitly restrict the workflow token to `contents: read`; pin third-party actions to reviewed commit SHAs; add Dependabot/Renovate and CodeQL/dependency review or equivalent scanning with documented triage.
+**Evidence:** the prior source review identified floating `node:22-alpine` base-image tags. This remains a hardening item unless the current Dockerfiles have since been changed.
 
-### P2 — Frontend and quality gates are incomplete
+**Next action:** inspect the current Dockerfiles and pin supported base images to immutable digests, with a documented update cadence and automated rebuild process.
 
-**Evidence:** the web workspace exposes a build script but no test or lint script. The CI workflow builds the web workspace but its test command runs only the API suite. The root lint script is a no-op where workspaces have no lint script.
+### P2 — Readiness probe load characteristics
 
-**Remediation:** add frontend unit/component tests, browser-level critical-path tests, ESLint/format/type gates, and ensure the CI workflow actually invokes them.
+**Evidence:** readiness checks can probe MongoDB, ClamAV, and document storage/S3. A timeout bounds an individual S3 request but does not establish acceptable aggregate probe load.
 
-### P2 — Runtime container and shutdown hardening
+**Next action:** measure readiness frequency and latency in staging. Add a short bounded cache or separate startup/deep dependency checks only if measurements justify it; preserve fail-closed upload behavior.
 
-**Evidence:** Docker base images use floating `node:22-alpine` tags; no container healthcheck is defined. The server closes the HTTP listener and disconnects MongoDB on signals, but has no explicit shutdown deadline or bounded drain strategy for in-flight requests/outbox work.
+### P2 — Monitoring, alerting and audit retention
 
-**Remediation:** pin base images (prefer digests), add a healthcheck that uses a lightweight liveness endpoint, set resource limits at the deployment layer, and implement a bounded graceful-shutdown deadline with worker drain and forced exit.
+**Evidence gap:** no live metrics/traces, actionable alert routes, incident exercise, or external tamper-evident audit archive was available.
 
-### P2 — Readiness performs live dependency probes on every request
+**Next action:** define service-level indicators, alert thresholds/ownership, incident runbooks, retention and access controls for audit events; test alert delivery and incident response.
 
-**Evidence:** each readiness call probes MongoDB state, ClamAV TCP PING, and document storage (including S3 HeadBucket). S3 calls are timeout-bounded but not cached.
+### P2 — Branch protection, secret scanning and license decisions
 
-**Remediation:** measure probe frequency and latency in staging; use a short bounded cache or separate startup/deep dependency checks if probe volume causes load, while retaining fail-closed behavior for actual uploads.
+**Evidence gap:** branch-protection/ruleset enforcement and secret-scanning alert inventory could not be verified through the available review. No legal license decision was supplied.
 
-### P2 — Operational resilience and legal posture need evidence
+**Next action:** owner-side verify required checks/reviews and secret-scanning configuration. Choose and approve a repository license before adding one; do not infer legal intent.
 
-**Evidence:** the repository describes backup and recovery recommendations but does not provide evidence of scheduled backups, restore tests, disaster-recovery objectives, external audit retention, monitoring/alert routing, or a declared repository license.
+## Ordered roadmap
 
-**Remediation:** document RPO/RTO, backup ownership, restore cadence, incident runbooks, metrics/traces/alerts, and an external tamper-evident audit archive. Add an appropriate license only after the owner chooses the intended legal terms.
-
-## Ordered next steps to reach the 9.5+ target
-
-1. Merge the ClamAV PING fix only after CI passes.
-2. Add the npm lockfile and switch all installs to `npm ci`.
-3. Correct and test health/readiness rate-limit exemptions.
-4. Add explicit CI permissions, action SHA pinning, dependency and static security scanning.
-5. Add frontend, end-to-end, load and security regression coverage.
-6. Deploy to staging with real MongoDB, S3 and ClamAV; validate migration and rollback.
-7. Prove backups/restores, monitoring, alerting, incident response and bounded shutdown.
-8. Complete an independent penetration test and close all high/critical findings.
+1. Recheck post-merge CI and CodeQL for audited SHA `a97151476cf2b74e944e519ddc2d4a9e9af2c548`.
+2. Inspect and, if still floating, digest-pin Docker base images.
+3. Verify branch protection/rulesets and secret scanning in GitHub settings.
+4. Complete staging validation with real MongoDB, S3 and ClamAV, including rollback.
+5. Execute and document backup/restore and disaster-recovery drills.
+6. Add operational monitoring, alerting, incident runbooks and tamper-evident audit retention.
+7. Complete an independent penetration test and close all high/critical findings.
+8. Make the repository license decision with the owner's explicit approval.
 
 ## Audit limitations
 
-This is a static repository/configuration audit, not a penetration test or live infrastructure assessment. GitHub's branch-protection endpoint was not accessible to the audit integration, so required-review and branch-protection settings remain unverified. Secret-scanning and code-scanning alert inventories were also not available through the inspected API surface. No claim is made that these controls are disabled; they require owner-side verification.
+This is a static repository/configuration audit and merged-change review, not a penetration test or live infrastructure assessment. No production credentials, cloud account, live database, running deployment, external scanner, or backup system was available. GitHub branch-protection and secret-scanning settings remain unverified. Workflow runs for the audited main SHA were in progress at the time of this update. No claim is made that unverified controls are disabled, nor that BuildSphere is certified, compliant, or production-ready.
