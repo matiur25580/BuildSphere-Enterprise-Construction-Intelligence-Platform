@@ -5,7 +5,7 @@ const documentGovernanceEventSchema = new Schema({
   projectId: { type: Schema.Types.ObjectId, ref: "Project", required: true, immutable: true, index: true },
   documentId: { type: Schema.Types.ObjectId, ref: "ProjectDocument", immutable: true },
   actorId: { type: Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
-  action: { type: String, enum: ["retention_policy_updated", "legal_hold_placed", "legal_hold_released"], required: true, immutable: true },
+  action: { type: String, enum: ["retention_policy_updated", "legal_hold_placed", "legal_hold_released", "purge_request_created", "purge_request_approved", "purge_manifest_prepared"], required: true, immutable: true },
   reference: { type: String, maxlength: 100, default: "", immutable: true },
   details: { type: Schema.Types.Mixed, default: {}, immutable: true },
   occurredAt: { type: Date, default: Date.now, immutable: true },

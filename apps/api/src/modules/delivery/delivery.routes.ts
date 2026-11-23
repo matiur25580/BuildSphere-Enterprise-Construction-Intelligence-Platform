@@ -2,6 +2,7 @@ import express, { Router } from "express";
 import { authenticate, requireRoles } from "../../middleware/authenticate.js";
 import * as controller from "./delivery.controller.js";
 import * as governance from "./document-governance.controller.js";
+import * as purge from "./document-purge.controller.js";
 
 const router = Router({ mergeParams: true });
 const managers = requireRoles("owner", "admin", "project_manager");
@@ -44,4 +45,8 @@ router.get("/document-governance/retention/evaluation", governance.evaluateDocum
 router.get("/document-governance/legal-holds", governance.listDocumentLegalHolds);
 router.post("/documents/:documentId/legal-holds", managers, governance.placeDocumentLegalHold);
 router.post("/documents/:documentId/legal-holds/:holdId/release", managers, governance.releaseDocumentLegalHold);
+router.post("/document-governance/purge-requests", managers, purge.createDocumentPurgeRequest);
+router.get("/document-governance/purge-requests", purge.listDocumentPurgeRequests);
+router.post("/document-governance/purge-requests/:purgeRequestId/approvals", managers, purge.approveDocumentPurgeRequest);
+router.post("/document-governance/purge-requests/:purgeRequestId/prepare", managers, purge.prepareDocumentPurgeManifest);
 export default router;

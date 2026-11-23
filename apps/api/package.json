@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "npm run build && node --test dist/config/security.test.js dist/modules/auth/auth.security.mongo.test.js dist/modules/intelligence/intelligence.rules.test.js dist/modules/collaboration/collaboration.access.test.js dist/modules/collaboration/collaboration.mongo.test.js dist/modules/delivery/documents.mongo.test.js dist/modules/delivery/document-storage.test.js dist/modules/delivery/document-upload-cleanup.mongo.test.js dist/modules/delivery/document-retention.mongo.test.js"
+    "test": "npm run build && node --test dist/config/security.test.js dist/modules/auth/auth.security.mongo.test.js dist/modules/intelligence/intelligence.rules.test.js dist/modules/collaboration/collaboration.access.test.js dist/modules/collaboration/collaboration.mongo.test.js dist/modules/delivery/documents.mongo.test.js dist/modules/delivery/document-storage.test.js dist/modules/delivery/document-upload-cleanup.mongo.test.js dist/modules/delivery/document-retention.mongo.test.js dist/modules/delivery/document-purge.mongo.test.js"
   },
   "dependencies": {
     "compression": "^1.8.1",
