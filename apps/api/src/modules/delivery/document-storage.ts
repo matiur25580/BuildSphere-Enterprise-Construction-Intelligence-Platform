@@ -77,7 +77,7 @@ export const readDocumentObject = async (key:string):Promise<Buffer> => {
 export const deleteDocumentObject = async (key:string):Promise<void> => {
   if(!validStorageKey(key))return;
   if(documentStorageDriver()==="s3"){const response=await signedS3Request("DELETE",key);if(!response.ok&&response.status!==404)throw new HttpError(503,"S3 document storage could not remove the object");return;}
-  await unlink(join(documentStorageDirectory(),key)).catch(()=>undefined);
+  try { await unlink(join(documentStorageDirectory(),key)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw new HttpError(503, "Private document storage could not remove the object"); }
 };
 export const checkDocumentStorageHealth = async ():Promise<boolean> => {
   try{if(documentStorageDriver()==="s3")return (await signedS3Request("HEAD")).ok;const dir=documentStorageDirectory();await mkdir(dir,{recursive:true,mode:0o700});const key=`.health-${randomUUID()}`;const path=join(dir,key);await writeFile(path,"ok",{flag:"wx",mode:0o600});await unlink(path);return true;}catch{return false;}
