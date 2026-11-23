@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { CommercialWorkspace } from "./CommercialWorkspace.js";
 import { FieldWorkspace } from "./FieldWorkspace.js";
 import { DeliveryWorkspace } from "./DeliveryWorkspace.js";
+import { IntelligenceWorkspace } from "./IntelligenceWorkspace.js";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api/v1";
 type Session = {
@@ -46,6 +47,7 @@ function App() {
   const [commercialProject, setCommercialProject] = useState<Project | null>(null);
   const [fieldProject, setFieldProject] = useState<Project | null>(null);
   const [deliveryProject, setDeliveryProject] = useState<Project | null>(null);
+  const [intelligenceProject, setIntelligenceProject] = useState<Project | null>(null);
   const [projectForm, setProjectForm] = useState({
     code: "", name: "", clientName: "", location: "",
     startDate: new Date().toISOString().slice(0, 10),
@@ -183,12 +185,13 @@ function App() {
                 <h3>{project.name}</h3><p className="project-client">{project.clientName || "Client not assigned"}{project.location ? ` · ${project.location}` : ""}</p>
                 <div className="project-dates"><span>START <b>{new Date(project.startDate).toLocaleDateString()}</b></span><span>TARGET <b>{new Date(project.targetEndDate).toLocaleDateString()}</b></span></div>
                 <div className="progress-caption"><span>Work item completion</span><b>{progress}%</b></div><div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
-                <div className="project-card-footer"><span>{project.completedWorkItems}/{project.workItemCount} work items complete</span><b>{new Intl.NumberFormat(undefined, { style: "currency", currency: project.currency, maximumFractionDigits: 0 }).format(project.budget)}</b></div><button className="commercial-open" onClick={() => setCommercialProject(project)}>Manage commercial</button><button className="field-open" onClick={() => setFieldProject(project)}>Field operations</button><button className="delivery-open" onClick={() => setDeliveryProject(project)}>Quality & approvals</button>
+                <div className="project-card-footer"><span>{project.completedWorkItems}/{project.workItemCount} work items complete</span><b>{new Intl.NumberFormat(undefined, { style: "currency", currency: project.currency, maximumFractionDigits: 0 }).format(project.budget)}</b></div><button className="commercial-open" onClick={() => setCommercialProject(project)}>Manage commercial</button><button className="field-open" onClick={() => setFieldProject(project)}>Field operations</button><button className="delivery-open" onClick={() => setDeliveryProject(project)}>Quality & approvals</button><button className="intelligence-open" onClick={() => setIntelligenceProject(project)}>AI project intelligence</button>
               </article>;
             })}</div>}
           {commercialProject && accessToken && <CommercialWorkspace project={commercialProject} token={accessToken} onClose={() => setCommercialProject(null)} />}
           {fieldProject && accessToken && <FieldWorkspace project={fieldProject} token={accessToken} onClose={() => setFieldProject(null)} />}
           {deliveryProject && accessToken && <DeliveryWorkspace project={deliveryProject} token={accessToken} onClose={() => setDeliveryProject(null)} />}
+          {intelligenceProject && accessToken && <IntelligenceWorkspace project={intelligenceProject} token={accessToken} onClose={() => setIntelligenceProject(null)} />}
         </section>
       </main>
     );
