@@ -17,7 +17,7 @@ const activitySchema = new Schema({
   targetType: { type: String, required: true, maxlength: 40 },
   targetId: { type: Schema.Types.ObjectId, required: true },
   summary: { type: String, required: true, maxlength: 240 },
-  sourceEventId: { type: Schema.Types.ObjectId, default: null },
+  sourceEventId: { type: Schema.Types.ObjectId },
 }, { timestamps: { createdAt: true, updatedAt: false } });
 activitySchema.index({ organizationId: 1, projectId: 1, createdAt: -1, _id: -1 });
 activitySchema.index({ sourceEventId: 1 }, { unique: true, sparse: true });
