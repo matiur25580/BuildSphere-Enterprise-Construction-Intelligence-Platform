@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import type { JwtPayload } from "jsonwebtoken";
 import { User } from "../modules/users/user.model.js";
+import { Organization } from "../modules/organizations/organization.model.js";
 import { Membership } from "../modules/organizations/membership.model.js";
 import { verifyAccessToken } from "../modules/auth/auth.service.js";
 
@@ -30,22 +31,27 @@ export const authenticate = async (request: Request, response: Response, next: N
     return;
   }
 
-  const [activeUser, activeMembership] = await Promise.all([
-    User.exists({ _id: payload.sub, status: "active" }),
-    Membership.exists({
-      userId: payload.sub,
-      organizationId: payload.organizationId,
-      role: payload.role,
-      status: "active",
-    }),
-  ]);
-  if (!activeUser || !activeMembership) {
-    response.status(401).json({ success: false, message: "Account or organization access is no longer active" });
-    return;
-  }
+  try {
+    const [activeUser, activeMembership, activeOrganization] = await Promise.all([
+      User.exists({ _id: payload.sub, status: "active" }),
+      Membership.exists({
+        userId: payload.sub,
+        organizationId: payload.organizationId,
+        role: payload.role,
+        status: "active",
+      }),
+      Organization.exists({ _id: payload.organizationId, status: "active" }),
+    ]);
+    if (!activeUser || !activeMembership || !activeOrganization) {
+      response.status(401).json({ success: false, message: "Account or organization access is no longer active" });
+      return;
+    }
 
-  request.auth = { userId: payload.sub!, organizationId: payload.organizationId!, role: payload.role! };
-  next();
+    request.auth = { userId: payload.sub, organizationId: payload.organizationId, role: payload.role };
+    next();
+  } catch (error) {
+    next(error);
+  }
 };
 
 export const requireRoles = (...roles: string[]) =>
