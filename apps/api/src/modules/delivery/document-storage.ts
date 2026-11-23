@@ -18,7 +18,7 @@ export const normalizeDocumentFile = (body: unknown, rawName: string | undefined
   if (!rawName || rawName.length > 720) throw new HttpError(400, "A valid x-file-name header is required");
   let decodedName: string;
   try { decodedName = decodeURIComponent(rawName); } catch { throw new HttpError(400, "Invalid file name encoding"); }
-  const fileName = basename(decodedName.replace(/\\/g, "/")).replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 180);
+  const fileName = basename(decodedName.replace(/\\\\/g, "/")).replace(/[\\u0000-\\u001f\\u007f]/g, "").trim().slice(0, 180);
   const extension = extname(fileName).toLowerCase();
   const expectedType = MIME_BY_EXTENSION[extension];
   if (!fileName || !expectedType || contentType?.split(";")[0].trim().toLowerCase() !== expectedType) {
@@ -58,7 +58,7 @@ export const scanDocumentWithClamAv = async (buffer: Buffer): Promise<void> => {
       else if (response.length > 4096) finish(new HttpError(503, "Unexpected malware scanner response"));
     });
     socket.on("connect", () => {
-      socket.write(Buffer.from("zINSTREAM\0", "binary"));
+      socket.write(Buffer.from("zINSTREAM\\0", "binary"));
       const chunkSize = 64 * 1024;
       for (let offset = 0; offset < buffer.length; offset += chunkSize) {
         const chunk = buffer.subarray(offset, Math.min(offset + chunkSize, buffer.length));
@@ -69,6 +69,26 @@ export const scanDocumentWithClamAv = async (buffer: Buffer): Promise<void> => {
       }
       socket.write(Buffer.alloc(4));
     });
+  });
+};
+
+export const checkClamAvHealth = async (): Promise<boolean> => {
+  const host = process.env.CLAMD_HOST;
+  const port = Number(process.env.CLAMD_PORT ?? 3310);
+  if (!host || !Number.isInteger(port) || port < 1 || port > 65535) return false;
+  return await new Promise<boolean>((resolve) => {
+    const socket = createConnection({ host, port });
+    let settled = false;
+    const finish = (healthy: boolean) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(healthy);
+    };
+    socket.setTimeout(2_000, () => finish(false));
+    socket.on("error", () => finish(false));
+    socket.on("data", (chunk: Buffer) => finish(chunk.toString("utf8").includes("PONG")));
+    socket.on("connect", () => socket.write(Buffer.from("zPING\\0", "binary")));
   });
 };
 
