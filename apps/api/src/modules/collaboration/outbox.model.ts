@@ -14,6 +14,7 @@ const outboxSchema = new Schema({
   attempts: { type: Number, min: 0, default: 0 },
   nextAttemptAt: { type: Date, default: Date.now, required: true },
   leaseExpiresAt: { type: Date, default: null },
+  leaseToken: { type: String, default: null, maxlength: 64 },
   lastError: { type: String, maxlength: 500, default: "" },
   deliveredAt: { type: Date, default: null },
 }, { timestamps: true });
