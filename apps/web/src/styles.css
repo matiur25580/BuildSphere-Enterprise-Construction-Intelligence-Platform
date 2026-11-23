@@ -43,3 +43,52 @@ form input::placeholder { color: #64748b; }
 .welcome-panel .fine-print { margin-top: 22px; }
 .loading { margin: auto; color: #9fb0c5; }
 @media (max-width: 850px) { .auth-shell { grid-template-columns: 1fr; } .auth-aside { min-height: 260px; padding: 24px; } .aside-copy { padding: 50px 0 20px; } .aside-copy h1 { font-size: 42px; } .aside-foot { display: none; } .auth-main { padding: 48px 24px; } }
+
+
+/* Project portfolio milestone */
+.header-actions { display: flex; align-items: center; gap: 18px; }
+.org-name { color: #91a0b4; font-size: 12px; }
+.dashboard { max-width: 1180px; margin: 54px auto 80px; }
+.dashboard-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 30px; }
+.dashboard-heading h1 { margin: 12px 0 5px; font: 800 clamp(28px,4vw,42px) "Manrope",sans-serif; letter-spacing: -1.5px; }
+.primary-button { border: 0; border-radius: 7px; padding: 12px 17px; background: #43b99c; color: #06231d; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.primary-button:hover,.submit-button:hover { background: #5ad0b2; }
+.metric-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 15px; margin-bottom: 52px; }
+.metric-card { display: flex; flex-direction: column; gap: 9px; padding: 20px 22px; border: 1px solid #25364a; border-radius: 10px; background: linear-gradient(145deg,rgba(22,39,57,.9),rgba(15,27,42,.85)); }
+.metric-card span,.count-label { color: #7e91a8; font-size: 9px; font-weight: 700; letter-spacing: 1.3px; }
+.metric-card strong { color: #f0f6f8; font: 800 28px "Manrope",sans-serif; letter-spacing: -.8px; }
+.metric-card small { color: #8192a8; font-size: 11px; }
+.section-heading,.panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 20px; }
+.section-heading h2,.panel-heading h2 { margin: 7px 0 0; font: 700 22px "Manrope",sans-serif; }
+.count-label { padding: 7px 10px; border: 1px solid #2a3b50; border-radius: 99px; }
+.project-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.project-card { padding: 21px; border: 1px solid #26384d; border-radius: 11px; background: linear-gradient(145deg,rgba(20,35,52,.95),rgba(13,24,38,.95)); transition: border-color .2s,transform .2s; }
+.project-card:hover { border-color: #3f8e7e; transform: translateY(-2px); }
+.project-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.project-code { color: #55c9ad; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+.status-pill { padding: 5px 9px; border-radius: 99px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
+.status-planning { background: #27354b; color: #b4c6df; }.status-active { background: #164438; color: #83e1c2; }.status-on_hold { background: #4b3a21; color: #f3cc83; }.status-completed { background: #1c3c50; color: #8fc9ee; }.status-cancelled { background: #492b35; color: #e7a6b3; }
+.project-card h3 { margin: 17px 0 5px; font: 700 18px "Manrope",sans-serif; }
+.project-client { min-height: 18px; margin: 0; color: #8597ad; font-size: 11px; }
+.project-dates { display: flex; gap: 35px; margin: 23px 0 20px; }
+.project-dates span { display: flex; flex-direction: column; gap: 5px; color: #74869c; font-size: 8px; letter-spacing: 1px; }
+.project-dates b { color: #c4d0dc; font-size: 11px; font-weight: 600; letter-spacing: 0; }
+.progress-caption,.project-card-footer { display: flex; justify-content: space-between; gap: 12px; color: #91a2b6; font-size: 10px; }
+.progress-caption b { color: #66d2b4; }
+.progress-track { height: 5px; margin: 9px 0 15px; overflow: hidden; border-radius: 99px; background: #27374a; }
+.progress-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#319d85,#65d4b7); }
+.project-card-footer { padding-top: 13px; border-top: 1px solid #26364a; color: #7f91a7; }
+.project-card-footer b { color: #d7e2e9; font-size: 11px; }
+.empty-state { display: flex; flex-direction: column; align-items: center; padding: 60px 24px; border: 1px dashed #34465c; border-radius: 12px; background: rgba(18,31,47,.55); text-align: center; }
+.empty-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 13px; background: #173d36; color: #70d9bd; font-size: 25px; }
+.empty-state h3 { margin: 18px 0 5px; font: 700 18px "Manrope",sans-serif; }
+.empty-state p { max-width: 420px; margin: 0 0 20px; color: #8fa0b5; font-size: 12px; line-height: 1.7; }
+.create-panel { margin: -24px 0 45px; padding: 23px; border: 1px solid #2d4657; border-radius: 12px; background: rgba(17,31,46,.95); }
+.project-form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+.project-form label { display: flex; flex-direction: column; gap: 7px; color: #b8c7d7; font-size: 11px; font-weight: 600; }
+.project-form input { width: 100%; padding: 11px 12px; border: 1px solid #2a3a50; border-radius: 7px; outline: none; background: #0e1a29; color: #edf2f7; font-size: 12px; color-scheme: dark; }
+.project-form input:focus { border-color: #42b99d; }
+.project-form-error { grid-column: 1/-1; margin: 0; }
+.project-submit { grid-column: 1/-1; margin-top: 4px; }
+@media(max-width:760px) { .dashboard { margin-top: 35px; }.dashboard-heading { align-items: flex-start; flex-direction: column; }.metric-grid { grid-template-columns: 1fr; gap: 10px; margin-bottom: 38px; }.metric-card { padding: 16px 18px; }.metric-card strong { font-size: 24px; }.project-grid { grid-template-columns: 1fr; }.org-name { display: none; } }
+@media(max-width:480px) { .project-form { grid-template-columns: 1fr; }.create-panel { padding: 17px; }.project-dates { gap: 22px; }.project-card-footer { align-items: flex-start; flex-direction: column; gap: 6px; } }
