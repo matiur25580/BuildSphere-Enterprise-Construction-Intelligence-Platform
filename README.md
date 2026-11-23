@@ -147,3 +147,12 @@ See [Architecture Overview](docs/architecture/overview.md).
 Implemented: exact CORS origin allowlisting (comma-separated `CLIENT_URL`), opt-in trusted-proxy configuration, UUID request correlation via `X-Request-Id`, a global API rate limit, 1 MB request-body limits, MongoDB readiness endpoint, security configuration unit tests, and a multi-stage non-root API Docker image. See [Production Readiness](docs/security/production-readiness.md).
 
 The readiness endpoint is `GET /api/v1/ready`; liveness remains `GET /api/v1/health`. This repository milestone does not provision hosting or prove production readiness. MongoDB-backed cross-tenant integration tests, external security scanning, deployment secrets, telemetry export, and immutable audit storage remain outstanding.
+
+
+## Collaboration, notifications and activity milestone
+
+Implemented: append-only project activity events for commercial record creation/status changes, quality inspections and NCR/CAPA workflows, safety reports, RFI/submittal lifecycle changes, and document registration/approval changes. Activity is tenant/project scoped and includes the authenticated actor, allowlisted event type, target reference, safe summary and timestamp. In-app notifications are persisted for other active members of the organization, with recipient-scoped inbox, unread count and mark-read operations. The dashboard includes a team inbox and per-project activity feed.
+
+API: `GET /api/v1/notifications`, `GET /api/v1/notifications/unread-count`, `PATCH /api/v1/notifications/read`, and `GET /api/v1/projects/:projectId/collaboration/activity`. See [Collaboration API](docs/api/collaboration.md).
+
+Limitations: notifications are organization-member fan-out, not project-assignee routing (there is no project membership/assignment model yet). Real-time Socket.IO delivery is intentionally not enabled. Event writes are best-effort after the business mutation; a durable transactional outbox/retry worker is required to guarantee delivery if the notification store is unavailable. MongoDB-backed tenant-isolation integration tests and tamper-evident activity storage remain outstanding. Unit tests validate the mandatory query scopes, but do not prove database authorization end-to-end.
