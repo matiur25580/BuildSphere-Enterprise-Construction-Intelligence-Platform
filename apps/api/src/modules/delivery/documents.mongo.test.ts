@@ -45,7 +45,7 @@ before(async () => {
       while (data.length >= 4) {
         const length = data.readUInt32BE(0);
         data = data.subarray(4);
-        if (length === 0) { socket.end(Buffer.from("stream: OK\\0")); return; }
+        if (length === 0) { socket.end(Buffer.from("stream: OK\0")); return; }
         if (data.length < length) return;
         data = data.subarray(length);
       }
