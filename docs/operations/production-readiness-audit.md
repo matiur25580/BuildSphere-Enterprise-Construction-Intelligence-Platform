@@ -2,16 +2,16 @@
 
 **Audit date:** 2026-11-24  
 **Audited branch:** `main`  
-**Audited commit:** `a97151476cf2b74e944e519ddc2d4a9e9af2c548`  
+**Audited commit:** `95bea574189566142ccc4bc7971151ca1e932b4d`  
 **Method:** static repository/configuration review plus review of merged pull-request scope and GitHub Actions metadata. No production credentials, cloud account, live database, running deployment, or external scanner was available.
 
 ## Executive summary
 
-BuildSphere now has a materially stronger application-security and CI foundation than the original 2026-11-23 audit snapshot. The repository history records remediation for the ClamAV readiness protocol, reproducible npm installs, health/readiness rate-limit exemptions, least-privilege and pinned CI actions, dependency/static analysis, frontend quality gates, browser E2E coverage, container health/shutdown behavior, and authentication/project-membership tenant-boundary regression tests.
+BuildSphere now has a materially stronger application-security and CI foundation than the original 2026-11-23 audit snapshot. The repository history records remediation for the ClamAV readiness protocol, reproducible npm installs, health/readiness rate-limit exemptions, least-privilege and pinned CI actions, dependency/static analysis, frontend quality gates, browser E2E coverage, container health/shutdown behavior, authentication/project-membership tenant-boundary regression tests, and immutable Node 22 Alpine base-image digest pinning.
 
 **This repository is not yet evidenced as production-ready.** The largest remaining gaps are live infrastructure verification, deployment and rollback evidence, backup/restore and disaster-recovery proof, operational monitoring, independent security testing, and a few repository-level hardening decisions listed below.
 
-The post-merge CI and CodeQL workflows for audited commit `a97151476cf2b74e944e519ddc2d4a9e9af2c548` were still in progress when this audit update was prepared. Earlier PR validation is not a substitute for those exact post-merge runs. Recheck both workflows before treating this commit's checks as complete.
+The post-merge CI and CodeQL workflows for audited commit `95bea574189566142ccc4bc7971151ca1e932b4d` were still pending/in progress when this audit update was prepared. PR #39 and PR #40 each passed their exact-head CI and CodeQL checks before merge; that does not replace post-merge validation of this exact main commit. Recheck both workflows before treating this commit's checks as complete.
 
 Do not interpret a successful CI run as proof of production deployment, cloud durability, security certification, or compliance.
 
@@ -38,6 +38,7 @@ The following repository-level audit items have corresponding merged changes. Th
 | Frontend quality | Frontend unit tests and lint/quality gates are included in CI. |
 | Browser critical paths | Playwright coverage exercises authentication/session restoration and project lifecycle flows. |
 | Container lifecycle | Docker healthcheck and bounded graceful-shutdown behavior were added. |
+| Container supply chain | Both Node 22 Alpine Docker stages are pinned to the verified immutable multi-platform image digest (PR #40). |
 | Authentication boundaries | MongoDB-backed tests cover refresh-session ownership and logout revocation. |
 | Project tenant boundaries | MongoDB-backed tests cover project-member enumeration and cross-project/cross-organization membership update isolation. |
 
@@ -63,11 +64,11 @@ Relevant merged work includes PRs #16–19, #26, and #34–38. Confirm the curre
 
 **Next action:** commission an independent application/API assessment, prioritize tenant isolation, authentication/session lifecycle, uploads/downloads, and collaboration/outbox workflows, then track all high/critical findings to verified closure.
 
-### P2 — Floating container base-image tags
+### Completed — Container base-image immutability
 
-**Evidence:** the prior source review identified floating `node:22-alpine` base-image tags. This remains a hardening item unless the current Dockerfiles have since been changed.
+**Evidence:** PR #40 pins both Docker build and runtime stages to the verified immutable Node 22 Alpine multi-platform digest. CI validated the production API container build on the PR head SHA.
 
-**Next action:** inspect the current Dockerfiles and pin supported base images to immutable digests, with a documented update cadence and automated rebuild process.
+**Maintenance:** keep the digest updated through a documented Node 22 patch cadence and automated rebuild process; verify upstream digest changes before updating.
 
 ### P2 — Readiness probe load characteristics
 
@@ -89,15 +90,14 @@ Relevant merged work includes PRs #16–19, #26, and #34–38. Confirm the curre
 
 ## Ordered roadmap
 
-1. Recheck post-merge CI and CodeQL for audited SHA `a97151476cf2b74e944e519ddc2d4a9e9af2c548`.
-2. Inspect and, if still floating, digest-pin Docker base images.
-3. Verify branch protection/rulesets and secret scanning in GitHub settings.
-4. Complete staging validation with real MongoDB, S3 and ClamAV, including rollback.
-5. Execute and document backup/restore and disaster-recovery drills.
-6. Add operational monitoring, alerting, incident runbooks and tamper-evident audit retention.
-7. Complete an independent penetration test and close all high/critical findings.
-8. Make the repository license decision with the owner's explicit approval.
+1. Recheck post-merge CI and CodeQL for audited SHA `95bea574189566142ccc4bc7971151ca1e932b4d`.
+2. Verify branch protection/rulesets and secret scanning in GitHub settings.
+3. Complete staging validation with real MongoDB, S3 and ClamAV, including rollback.
+4. Execute and document backup/restore and disaster-recovery drills.
+5. Add operational monitoring, alerting, incident runbooks and tamper-evident audit retention.
+6. Complete an independent penetration test and close all high/critical findings.
+7. Make the repository license decision with the owner's explicit approval.
 
 ## Audit limitations
 
-This is a static repository/configuration audit and merged-change review, not a penetration test or live infrastructure assessment. No production credentials, cloud account, live database, running deployment, external scanner, or backup system was available. GitHub branch-protection and secret-scanning settings remain unverified. Workflow runs for the audited main SHA were in progress at the time of this update. No claim is made that unverified controls are disabled, nor that BuildSphere is certified, compliant, or production-ready.
+This is a static repository/configuration audit and merged-change review, not a penetration test or live infrastructure assessment. No production credentials, cloud account, live database, running deployment, external scanner, or backup system was available. GitHub branch-protection and secret-scanning settings remain unverified. Post-merge workflow runs for the audited main SHA were pending/in progress at the time of this update. No claim is made that unverified controls are disabled, nor that BuildSphere is certified, compliant, or production-ready.
