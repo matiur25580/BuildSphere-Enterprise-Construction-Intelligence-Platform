@@ -11,7 +11,6 @@ const context = (request: Request) => {
   return request.auth;
 };
 
-const serialize = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown;
 
 export const listProjects = asyncHandler(async (request: Request, response: Response) => {
   const auth = context(request);
@@ -46,13 +45,14 @@ export const getProject = asyncHandler(async (request: Request, response: Respon
 export const updateProject = asyncHandler(async (request: Request, response: Response) => {
   const auth = context(request);
   const input = updateProjectSchema.parse(request.body);
-  const project = await Project.findOneAndUpdate(
-    { _id: request.params.projectId, organizationId: auth.organizationId },
-    { $set: input }, { new: true, runValidators: true },
-  );
-  if (!project) throw new HttpError(404, "Project not found");
-  if (project.targetEndDate < project.startDate) throw new HttpError(400, "Target end date must be on or after the start date");
-  response.json({ success: true, data: project });
+  const existing = await Project.findOne({ _id: request.params.projectId, organizationId: auth.organizationId });
+  if (!existing) throw new HttpError(404, "Project not found");
+  const nextStart = input.startDate ?? existing.startDate;
+  const nextEnd = input.targetEndDate ?? existing.targetEndDate;
+  if (nextEnd < nextStart) throw new HttpError(400, "Target end date must be on or after the start date");
+  Object.assign(existing, input);
+  await existing.save();
+  response.json({ success: true, data: existing });
 });
 
 export const listWorkItems = asyncHandler(async (request: Request, response: Response) => {
