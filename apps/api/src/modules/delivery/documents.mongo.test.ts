@@ -19,7 +19,7 @@ import { DocumentAsset } from "./document-asset.model.js";
 import { DocumentAuditEvent } from "./document-audit.model.js";
 
 const mongoUri = process.env.MONGODB_URI;
-const isolatedMongoUri = mongoUri?.replace(/\\/[^/?]+(?=\\?)/, "/buildsphere_documents_ci");
+const isolatedMongoUri = mongoUri?.replace("buildsphere_ci", "buildsphere_documents_ci");
 let httpServer: Server | undefined;
 let clamdServer: TcpServer | undefined;
 let baseUrl = "";
