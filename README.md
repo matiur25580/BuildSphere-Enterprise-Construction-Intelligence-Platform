@@ -102,6 +102,9 @@ See [Authentication API](docs/api/authentication.md) and [Authentication Securit
 6. Quality, safety, documents, and approvals.
 7. AI project intelligence and evidence-backed insights.
 8. Security hardening, automated testing, and deployment.
+9. Tenant-scoped collaboration, notifications and activity feed.
+10. Project membership, task assignment and reliable collaboration.
+11. Workflow-wide collaboration event coverage and worker fencing.
 
 ## Project portfolio milestone scope
 
@@ -151,11 +154,11 @@ The readiness endpoint is `GET /api/v1/ready`; liveness remains `GET /api/v1/hea
 
 ## Collaboration, notifications and activity milestone
 
-Implemented: append-only project activity events for commercial record creation/status changes, quality inspections and NCR/CAPA workflows, safety reports, RFI/submittal lifecycle changes, and document registration/approval changes. Activity is tenant/project scoped and includes the authenticated actor, allowlisted event type, target reference, safe summary and timestamp. In-app notifications are persisted for other active members of the organization, with recipient-scoped inbox, unread count and mark-read operations. The dashboard includes a team inbox and per-project activity feed.
+Implemented: append-only project activity and persisted recipient-scoped notifications for task assignment, commercial record creation/status, quality inspection and NCR/CAPA workflows, safety event creation/status, RFI/submittal lifecycle, and document registration/version/approval changes. Activity reads are tenant/project scoped; non-manager readers require active project membership. Notifications are restricted to the authenticated recipient and active tenant. The dashboard includes a team inbox, project roster and assignment controls.
 
-API: `GET /api/v1/notifications`, `GET /api/v1/notifications/unread-count`, `PATCH /api/v1/notifications/read`, and `GET /api/v1/projects/:projectId/collaboration/activity`. See [Collaboration API](docs/api/collaboration.md).
+API: `GET /api/v1/notifications`, `GET /api/v1/notifications/unread-count`, `PATCH /api/v1/notifications/read`, and `GET /api/v1/projects/:projectId/collaboration/activity`. See [Collaboration API](docs/api/collaboration.md) and [Project membership and outbox API](docs/api/project-membership-and-outbox.md).
 
-Limitations: notifications are organization-member fan-out, not project-assignee routing (there is no project membership/assignment model yet). Real-time Socket.IO delivery is intentionally not enabled. Event writes are best-effort after the business mutation; a durable transactional outbox/retry worker is required to guarantee delivery if the notification store is unavailable. MongoDB-backed tenant-isolation integration tests and tamper-evident activity storage remain outstanding. Unit tests validate the mandatory query scopes, but do not prove database authorization end-to-end.
+Limitations: event enqueue remains a separate best-effort write after the business mutation, not a transactionally coupled outbox. Real-time Socket.IO, failed-event operator replay, full HTTP/JWT end-to-end authorization tests, and tamper-evident activity storage remain outstanding.
 
 ## Phase 10 — Project membership, task assignment and reliable collaboration
 
