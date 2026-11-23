@@ -1,23 +1,31 @@
 import "dotenv/config";
+import mongoose from "mongoose";
 import app from "./app.js";
 
 const port = Number(process.env.PORT) || 5000;
+const mongoUri = process.env.MONGODB_URI;
 
-const server = app.listen(port, () => {
-  console.info(`BuildSphere API listening on port ${port}`);
-});
+if (!mongoUri) throw new Error("MONGODB_URI must be configured");
 
-const shutdown = (signal: string) => {
-  console.info(`${signal} received; shutting down gracefully.`);
-  server.close((error) => {
-    if (error) {
-      console.error("Error while closing HTTP server:", error);
-      process.exitCode = 1;
-      return;
-    }
-    process.exit(0);
+const start = async () => {
+  await mongoose.connect(mongoUri);
+  console.info("BuildSphere connected to MongoDB");
+  const server = app.listen(port, () => {
+    console.info(`BuildSphere API listening on port ${port}`);
   });
+
+  const shutdown = (signal: string) => {
+    console.info(`${signal} received; shutting down gracefully.`);
+    server.close(() => {
+      void mongoose.disconnect().finally(() => process.exit(0));
+    });
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 };
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+start().catch((error: unknown) => {
+  console.error("Failed to start BuildSphere API:", error);
+  process.exit(1);
+});
