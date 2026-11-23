@@ -54,7 +54,7 @@ test("S3 adapter signs private object requests and supports temporary credential
     requests.push({ method, url, authorization, token });
     const key = url.split("/").pop() ?? "";
     if (method === "PUT") { objects.set(key, Buffer.from(init?.body as Uint8Array<ArrayBuffer>)); return new Response(null, { status: 200 }); }
-    if (method === "GET") { const value = objects.get(key); return value ? new Response(value, { status: 200 }) : new Response(null, { status: 404 }); }
+    if (method === "GET") { const value = objects.get(key); return value ? new Response(Uint8Array.from(value), { status: 200 }) : new Response(null, { status: 404 }); }
     if (method === "DELETE") { objects.delete(key); return new Response(null, { status: 204 }); }
     if (method === "HEAD") return new Response(null, { status: 200 });
     return new Response(null, { status: 405 });
