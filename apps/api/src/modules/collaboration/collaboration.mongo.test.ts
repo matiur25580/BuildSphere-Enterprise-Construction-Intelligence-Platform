@@ -193,6 +193,14 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
     { organizationId: orgA._id, projectId: project._id, userId: inactiveMember._id, role: "contributor", status: "inactive", addedBy: userA._id },
     { organizationId: orgA._id, projectId: project._id, userId: projectManager._id, role: "project_manager", status: "active", addedBy: userA._id },
   ]);
+  const otherProjectMembership = await ProjectMembership.create({
+    organizationId: orgA._id, projectId: new mongoose.Types.ObjectId(), userId: invitee._id,
+    role: "viewer", status: "active", addedBy: userA._id,
+  });
+  const otherTenantMembership = await ProjectMembership.create({
+    organizationId: orgB._id, projectId: new mongoose.Types.ObjectId(), userId: userB._id,
+    role: "viewer", status: "active", addedBy: userB._id,
+  });
   const activity = await Activity.create({
     organizationId: orgA._id, projectId: project._id, actorId: userA._id,
     eventType: "tasks.assigned", targetType: "work_item", targetId: new mongoose.Types.ObjectId(), summary: "Visible project activity",
@@ -280,9 +288,15 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   })).status, 403);
   assert.equal((await call(`/api/v1/projects/${project.id}/commercial/records`, outsiderToken)).status, 403);
   assert.equal((await call(`/api/v1/projects/${project.id}/bim/models`, ownerToken)).status, 200);
+  assert.equal((await call(`/api/v1/projects/${project.id}/members`, outsiderToken)).status, 403);
+  assert.equal((await call(`/api/v1/projects/${project.id}/members/eligible`, viewerToken)).status, 403);
+  assert.equal((await call(`/api/v1/projects/${project.id}/members/eligible`, outsiderToken)).status, 403);
   assert.equal((await call(`/api/v1/projects/${project.id}/members`, viewerToken, "POST", { userId: String(assignee._id), role: "viewer" })).status, 403);
   assert.equal((await call(`/api/v1/projects/${project.id}/members`, ownerToken, "POST", { userId: String(userB._id), role: "viewer" })).status, 404);
   assert.equal((await call(`/api/v1/projects/${project.id}/members`, ownerToken, "POST", { userId: String(invitee._id), role: "viewer" })).status, 201);
+  assert.equal((await call(`/api/v1/projects/${project.id}/members/eligible`, projectManagerToken)).status, 200);
+  assert.equal((await call(`/api/v1/projects/${project.id}/members/${otherProjectMembership.id}`, ownerToken, "PATCH", { role: "contributor" })).status, 404);
+  assert.equal((await call(`/api/v1/projects/${project.id}/members/${otherTenantMembership.id}`, ownerToken, "PATCH", { status: "inactive" })).status, 404);
 
   const task = await call(`/api/v1/projects/${project.id}/work-items`, ownerToken, "POST", {
     code: "TASK-HTTP", title: "Assigned task", startDate: "2026-02-01", endDate: "2026-02-02", assignedUserId: String(assignee._id),
