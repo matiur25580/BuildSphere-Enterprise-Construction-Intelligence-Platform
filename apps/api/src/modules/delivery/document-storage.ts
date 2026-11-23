@@ -28,6 +28,33 @@ export const normalizeDocumentFile = (body: unknown, rawName: string | undefined
   return { buffer: body, fileName, contentType: expectedType };
 };
 
+/** Check ClamAV availability with its lightweight PING command. */
+export const checkClamAvHealth = async (): Promise<boolean> => {
+  const host = process.env.CLAMD_HOST;
+  if (!host) return false;
+  const port = Number(process.env.CLAMD_PORT ?? 3310);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return false;
+  return new Promise<boolean>((resolve) => {
+    const socket = createConnection({ host, port });
+    let response = "";
+    let settled = false;
+    const finish = (healthy: boolean) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(healthy);
+    };
+    socket.setTimeout(2000, () => finish(false));
+    socket.on("error", () => finish(false));
+    socket.on("data", (chunk: Buffer) => {
+      response += chunk.toString("utf8");
+      if (response.includes("PONG")) finish(true);
+      else if (response.length > 128) finish(false);
+    });
+    socket.on("connect", () => socket.write(Buffer.from("zPING\\0", "binary")));
+  });
+};
+
 export const scanDocumentWithClamAv = async (buffer: Buffer): Promise<void> => {
   const host = process.env.CLAMD_HOST;
   if (!host) throw new HttpError(503, "Document scanning is not configured; set CLAMD_HOST before accepting uploads");
