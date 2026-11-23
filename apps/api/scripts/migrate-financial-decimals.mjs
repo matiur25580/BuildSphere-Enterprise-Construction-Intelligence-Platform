@@ -15,13 +15,14 @@ const migrate = async () => {
   try {
     for (const { name, field } of collections) {
       const collection = mongoose.connection.collection(name);
+      const fieldPath = "$" + field;
       const result = await collection.updateMany(
         { [field]: { $exists: true } },
         [{ $set: { [field]: { $toDecimal: { $toString: { $ifNull: [`${field}`, "0"] } } } } }],
       );
       const remaining = await collection.countDocuments({
         [field]: { $exists: true },
-        $expr: { $ne: [{ $type: `$${field}` }, "decimal"] },
+        $expr: { $ne: [{ $type: fieldPath }, "decimal"] },
       });
       if (remaining > 0) {
         throw new Error(`Migration incomplete for ${name}.${field}: ${remaining} non-decimal values remain`);
