@@ -44,7 +44,7 @@ export const authenticate = async (request: Request, response: Response, next: N
     return;
   }
 
-  request.auth = { userId: payload.sub!, organizationId: payload.organizationId, role: payload.role };
+  request.auth = { userId: payload.sub!, organizationId: payload.organizationId!, role: payload.role! };
   next();
 };
 
