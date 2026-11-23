@@ -35,14 +35,14 @@ export const listCostCodes = asyncHandler(async (request: Request, response: Res
   const auth = authContext(request);
   await projectFor(String(request.params.projectId), auth.organizationId);
   const items = await CostCode.find({ organizationId: auth.organizationId, projectId: String(request.params.projectId) }).sort({ code: 1 }).lean();
-  response.json({ success: true, data: items });
+  response.json({ success: true, data: items.map((item) => ({ ...item, budget: asDecimalString(item.budget) })) });
 });
 export const createCostCode = asyncHandler(async (request: Request, response: Response) => {
   const auth = authContext(request);
   await projectFor(String(request.params.projectId), auth.organizationId);
   const input = createCostCodeSchema.parse(request.body);
   const item = await CostCode.create({ ...input, organizationId: auth.organizationId, projectId: String(request.params.projectId) });
-  response.status(201).json({ success: true, data: item });
+  response.status(201).json({ success: true, data: { ...item.toObject(), budget: asDecimalString(item.budget) } });
 });
 export const listRecords = asyncHandler(async (request: Request, response: Response) => {
   const auth = authContext(request);
@@ -50,7 +50,7 @@ export const listRecords = asyncHandler(async (request: Request, response: Respo
   const filter: Record<string, unknown> = { organizationId: auth.organizationId, projectId: String(request.params.projectId) };
   if (typeof request.query.type === "string" && ["purchase_order", "invoice", "payment_claim"].includes(request.query.type)) filter.type = request.query.type;
   const records = await CommercialRecord.find(filter).populate("costCodeId", "code name").sort({ issueDate: -1, createdAt: -1 }).lean();
-  response.json({ success: true, data: records });
+  response.json({ success: true, data: records.map((record) => ({ ...record, amount: asDecimalString(record.amount) })) });
 });
 export const createRecord = asyncHandler(async (request: Request, response: Response) => {
   const auth = authContext(request);
@@ -62,7 +62,7 @@ export const createRecord = asyncHandler(async (request: Request, response: Resp
   }
   const record = new CommercialRecord({ ...input, costCodeId: input.costCodeId || null, organizationId: auth.organizationId, projectId: String(request.params.projectId), createdBy: auth.userId });
   await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "commercial.record_created", targetType: "commercial_record", targetId: String(record._id), summary: `${record.type.replace("_", " ")} record created` }, (session) => record.save(session ? { session } : {}));
-  response.status(201).json({ success: true, data: record });
+  response.status(201).json({ success: true, data: { ...record.toObject(), amount: asDecimalString(record.amount) } });
 });
 export const updateRecordStatus = asyncHandler(async (request: Request, response: Response) => {
   const auth = authContext(request);
@@ -77,7 +77,7 @@ export const updateRecordStatus = asyncHandler(async (request: Request, response
   record.status = input.status;
   if (input.notes !== undefined) record.notes = input.notes;
   await runProjectMutationWithEvent({ organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId, eventType: "commercial.status_changed", targetType: "commercial_record", targetId: String(record._id), summary: `Commercial record status changed to ${record.status}` }, (session) => record.save(session ? { session } : {}));
-  response.json({ success: true, data: record });
+  response.json({ success: true, data: { ...record.toObject(), amount: asDecimalString(record.amount) } });
 });
 export const getCommercialSummary = asyncHandler(async (request: Request, response: Response) => {
   const auth = authContext(request);
