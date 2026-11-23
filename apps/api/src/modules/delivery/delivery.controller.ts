@@ -20,7 +20,6 @@ const projectContext = async (request: Request) => {
   return { auth, projectId, scope: { organizationId: auth.organizationId, projectId } };
 };
 const transition = (current: string, next: string, allowed: Record<string, string[]>, label: string) => { if (!allowed[current]?.includes(next)) throw new HttpError(409, `Cannot move ${label} from ${current} to ${next}`); };
-const list = (model: typeof Inspection, scope: { organizationId: string; projectId: string }, sort: Record<string, 1 | -1> = { createdAt: -1 }) => model.find(scope).sort(sort).limit(100).lean();
 
 export const getDeliverySummary = asyncHandler(async (request: Request, response: Response) => {
   const { scope } = await projectContext(request);
