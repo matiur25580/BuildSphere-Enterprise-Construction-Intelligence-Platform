@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { DocumentUploadSession } from "./document-upload-session.model.js";
 import { DocumentAsset } from "./document-asset.model.js";
+import { DocumentStorageInventoryState } from "./document-storage-inventory-state.model.js";
 import { putDocumentObject } from "./document-storage.js";
 import { reconcileExpiredDocumentUploads, reconcileOrphanDocumentObjects } from "./document-upload-cleanup.service.js";
 
@@ -17,6 +18,7 @@ before(async () => {
   if (!mongoUri) throw new Error("MONGODB_URI is required for upload cleanup integration tests");
   await mongoose.connect(mongoUri);
   await Promise.all([DocumentUploadSession.syncIndexes(), DocumentAsset.syncIndexes()]);
+  await DocumentStorageInventoryState.deleteMany({});
   storageDirectory = await mkdtemp(join(tmpdir(), "buildsphere-upload-cleanup-"));
   process.env.DOCUMENT_STORAGE_DRIVER = "filesystem";
   process.env.DOCUMENT_STORAGE_DIR = storageDirectory;
@@ -25,6 +27,7 @@ before(async () => {
 after(async () => {
   await DocumentUploadSession.deleteMany({});
   await DocumentAsset.deleteMany({});
+  await DocumentStorageInventoryState.deleteMany({});
   await mongoose.disconnect();
   if (storageDirectory) await rm(storageDirectory, { recursive: true, force: true });
 });
