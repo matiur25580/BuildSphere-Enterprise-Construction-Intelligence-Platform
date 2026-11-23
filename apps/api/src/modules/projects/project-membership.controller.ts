@@ -33,8 +33,11 @@ export const addProjectMember = asyncHandler(async (request: Request, response: 
   const auth = context(request);
   const scope = await projectScope(request, auth.organizationId);
   const input = addProjectMemberSchema.parse(request.body);
-  const activeMembership = await Membership.exists({ organizationId: auth.organizationId, userId: input.userId, status: "active" });
-  if (!activeMembership) throw new HttpError(404, "Active organization member not found");
+  const [activeMembership, activeUser] = await Promise.all([
+    Membership.exists({ organizationId: auth.organizationId, userId: input.userId, status: "active" }),
+    User.exists({ _id: input.userId, status: "active" }),
+  ]);
+  if (!activeMembership || !activeUser) throw new HttpError(404, "Active organization member not found");
   const member = await ProjectMembership.findOneAndUpdate(
     { ...scope, userId: input.userId },
     { $set: { role: input.role, status: "active", addedBy: auth.userId }, $setOnInsert: scope },
