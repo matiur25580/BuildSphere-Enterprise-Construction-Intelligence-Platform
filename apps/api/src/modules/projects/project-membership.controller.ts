@@ -21,6 +21,10 @@ const projectScope = async (request: Request, organizationId: string) => {
 export const listProjectMembers = asyncHandler(async (request: Request, response: Response) => {
   const auth = context(request);
   const scope = await projectScope(request, auth.organizationId);
+  if (!["owner", "admin", "project_manager"].includes(auth.role)) {
+    const member = await ProjectMembership.exists({ ...scope, userId: auth.userId, status: "active" });
+    if (!member) throw new HttpError(403, "You are not a member of this project");
+  }
   const members = await ProjectMembership.find(scope).populate("userId", "name email").sort({ role: 1, createdAt: 1 }).lean();
   response.json({ success: true, data: members });
 });
