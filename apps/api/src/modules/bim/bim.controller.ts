@@ -51,7 +51,7 @@ export const registerBimModel = asyncHandler(async (request: Request, response: 
   });
   await runProjectMutationWithEvent({
     organizationId: auth.organizationId, projectId, actorId: auth.userId,
-    eventType: "bim.model_registered", targetType: "bim_model", targetId: item._id,
+    eventType: "bim.model_registered", targetType: "bim_model", targetId: String(item._id),
     summary: `BIM model registered: ${input.modelName} (v${currentVersion.version})`,
   }, (session) => item.save(session ? { session } : {}));
   response.status(201).json({ success: true, data: item });
@@ -84,7 +84,7 @@ export const createBimIssue = asyncHandler(async (request: Request, response: Re
   });
   await runProjectMutationWithEvent({
     organizationId: auth.organizationId, projectId, actorId: auth.userId,
-    eventType: "bim.issue_created", targetType: "bim_issue", targetId: item._id,
+    eventType: "bim.issue_created", targetType: "bim_issue", targetId: String(item._id),
     summary: `BIM issue created: ${input.reference} · ${input.title}`,
   }, (session) => item.save(session ? { session } : {}));
   response.status(201).json({ success: true, data: item });
