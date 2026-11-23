@@ -8,21 +8,16 @@ services:
     volumes:
       - buildsphere-mongo:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ ping: 1 }).ok"]
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --eval 'try { rs.status().ok } catch (e) {
+          rs.initiate({_id: "rs0", members: [{_id: 0, host: "127.0.0.1:27017"}]});
+          }' &&
+          mongosh --quiet --eval 'db.hello().isWritablePrimary' | grep -q true
       interval: 5s
-      timeout: 5s
-      retries: 20
-  mongo-init:
-    image: mongo:7
-    depends_on:
-      mongodb:
-        condition: service_healthy
-    restart: "no"
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        mongosh mongodb://mongodb:27017/admin --quiet --eval 'try { rs.status().ok } catch (e) { rs.initiate({_id: "rs0", members: [{_id: 0, host: "mongodb:27017"}]}).ok }'
+      timeout: 8s
+      retries: 30
   clamav:
     image: clamav/clamav:stable
     ports:
