@@ -43,6 +43,8 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Build API and web workspaces
         run: npm run build
+      - name: Run web unit tests
+        run: npm test --workspace=@buildsphere/web
       - name: Run API unit and MongoDB integration tests
         run: npm test --workspace=@buildsphere/api
         env:
