@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { asyncHandler } from "../../common/async-handler.js";
 import { HttpError } from "../../common/http-error.js";
 import { Membership } from "../organizations/membership.model.js";
+import { User } from "../users/user.model.js";
 import { Project } from "./project.model.js";
 import { ProjectMembership } from "./project-membership.model.js";
 import { addProjectMemberSchema, updateProjectMemberSchema } from "./project-membership.schemas.js";
@@ -50,4 +51,18 @@ export const updateProjectMember = asyncHandler(async (request: Request, respons
   ).populate("userId", "name email");
   if (!member) throw new HttpError(404, "Project member not found");
   response.json({ success: true, data: member });
+});
+
+export const listEligibleProjectMembers = asyncHandler(async (request: Request, response: Response) => {
+  const auth = context(request);
+  const scope = await projectScope(request, auth.organizationId);
+  const current = await ProjectMembership.find(scope).distinct("userId");
+  const memberships = await Membership.find({
+    organizationId: auth.organizationId,
+    status: "active",
+    userId: { $nin: current },
+  }).select("userId").lean();
+  const users = await User.find({ _id: { $in: memberships.map((item) => item.userId) }, status: "active" })
+    .select("name email").sort({ name: 1 }).lean();
+  response.json({ success: true, data: users });
 });
