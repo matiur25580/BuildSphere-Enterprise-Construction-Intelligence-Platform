@@ -234,3 +234,70 @@ test("readiness reports critical dependency health and fails closed when ClamAV 
   assert.equal(degradedBody.dependencies.clamav, "unavailable");
   process.env.CLAMD_PORT = String(scannerPort);
 });
+
+test("logout revokes the supplied refresh session and prevents subsequent rotation", async () => {
+  const user = await User.create({ name: "Logout User", email: "logout-session@example.test", passwordHash: "test-hash" });
+  const organization = await Organization.create({ name: "Logout Tenant", slug: "logout-session-tenant", createdBy: user._id });
+  await Membership.create({ userId: user._id, organizationId: organization._id, role: "owner", status: "active" });
+  const refreshToken = "logout-refresh-token-to-revoke";
+  await RefreshSession.create({
+    userId: user._id,
+    organizationId: organization._id,
+    familyId: "logout-refresh-family",
+    tokenHash: hashToken(refreshToken),
+    expiresAt: new Date(Date.now() + 60_000),
+  });
+
+  const loggedOut = await fetch(baseUrl + "/api/v1/auth/logout", {
+    method: "POST",
+    headers: { cookie: "buildsphere_refresh=" + refreshToken },
+  });
+  assert.equal(loggedOut.status, 200);
+  assert.match(loggedOut.headers.get("set-cookie") ?? "", /buildsphere_refresh=;/);
+  const storedSession = await RefreshSession.findOne({ tokenHash: hashToken(refreshToken) }).lean();
+  assert.ok(storedSession?.revokedAt);
+
+  const replay = await fetch(baseUrl + "/api/v1/auth/refresh", {
+    method: "POST",
+    headers: { cookie: "buildsphere_refresh=" + refreshToken },
+  });
+  assert.equal(replay.status, 401);
+  assert.match((await replay.json() as { message: string }).message, /invalid or expired/i);
+});
+
+test("organization switching rejects a refresh token owned by a different user", async () => {
+  const [requestingUser, tokenOwner] = await User.create([
+    { name: "Requesting User", email: "switch-requester@example.test", passwordHash: "test-hash" },
+    { name: "Refresh Token Owner", email: "switch-token-owner@example.test", passwordHash: "test-hash" },
+  ]);
+  const [requesterOrganization, ownerOrganization] = await Organization.create([
+    { name: "Requester Tenant", slug: "switch-requester-tenant", createdBy: requestingUser._id },
+    { name: "Token Owner Tenant", slug: "switch-token-owner-tenant", createdBy: tokenOwner._id },
+  ]);
+  await Membership.create([
+    { userId: requestingUser._id, organizationId: requesterOrganization._id, role: "owner", status: "active" },
+    { userId: tokenOwner._id, organizationId: ownerOrganization._id, role: "owner", status: "active" },
+  ]);
+  const refreshToken = "another-users-refresh-token";
+  await RefreshSession.create({
+    userId: tokenOwner._id,
+    organizationId: ownerOrganization._id,
+    familyId: "cross-user-switch-family",
+    tokenHash: hashToken(refreshToken),
+    expiresAt: new Date(Date.now() + 60_000),
+  });
+
+  const response = await fetch(baseUrl + "/api/v1/auth/switch-organization", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer " + accessToken(String(requestingUser._id), String(requesterOrganization._id), "owner"),
+      cookie: "buildsphere_refresh=" + refreshToken,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ organizationId: String(ownerOrganization._id) }),
+  });
+  assert.equal(response.status, 401);
+  assert.match((await response.json() as { message: string }).message, /invalid or expired/i);
+  const untouchedSession = await RefreshSession.findOne({ tokenHash: hashToken(refreshToken) }).lean();
+  assert.equal(untouchedSession?.revokedAt, null);
+});
