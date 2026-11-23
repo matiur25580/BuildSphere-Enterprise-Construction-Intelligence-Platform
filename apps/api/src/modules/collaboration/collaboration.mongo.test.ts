@@ -167,6 +167,7 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   const secondOwner = await User.create({ name: "Second owner", email: "owner-two@example.test", passwordHash: "test-hash" });
   const newMember = await User.create({ name: "New member", email: "new-member@example.test", passwordHash: "test-hash" });
   const adminTarget = await User.create({ name: "Admin target", email: "admin-target@example.test", passwordHash: "test-hash" });
+  const projectManager = await User.create({ name: "Project manager", email: "project-manager@example.test", passwordHash: "test-hash" });
   const orgA = await Organization.create({ name: "Tenant A", slug: "tenant-a-test", createdBy: userA._id });
   const orgB = await Organization.create({ name: "Tenant B", slug: "tenant-b-test", createdBy: userB._id });
   await Membership.create([
@@ -180,6 +181,7 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
     { userId: admin._id, organizationId: orgA._id, role: "admin", status: "active" },
     { userId: secondOwner._id, organizationId: orgA._id, role: "owner", status: "active" },
     { userId: adminTarget._id, organizationId: orgA._id, role: "member", status: "active" },
+    { userId: projectManager._id, organizationId: orgA._id, role: "member", status: "active" },
   ]);
   const project = await Project.create({
     organizationId: orgA._id, code: "HTTP-1", name: "HTTP authorization project",
@@ -189,6 +191,7 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
     { organizationId: orgA._id, projectId: project._id, userId: viewer._id, role: "contributor", status: "active", addedBy: userA._id },
     { organizationId: orgA._id, projectId: project._id, userId: assignee._id, role: "contributor", status: "active", addedBy: userA._id },
     { organizationId: orgA._id, projectId: project._id, userId: inactiveMember._id, role: "contributor", status: "inactive", addedBy: userA._id },
+    { organizationId: orgA._id, projectId: project._id, userId: projectManager._id, role: "project_manager", status: "active", addedBy: userA._id },
   ]);
   const activity = await Activity.create({
     organizationId: orgA._id, projectId: project._id, actorId: userA._id,
@@ -209,6 +212,7 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   const inactiveToken = token(String(inactiveMember._id), String(orgA._id), "member");
   const tenantBToken = token(String(userB._id), String(orgB._id), "owner");
   const adminToken = token(String(admin._id), String(orgA._id), "admin");
+  const projectManagerToken = token(String(projectManager._id), String(orgA._id), "member");
   const secondOwnerToken = token(String(secondOwner._id), String(orgA._id), "owner");
   httpServer = app.listen(0);
   await new Promise<void>((resolve) => httpServer!.once("listening", resolve));
@@ -262,6 +266,20 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   assert.equal((await call(`/api/v1/projects/${project.id}/collaboration/activity`, outsiderToken)).status, 403);
   assert.equal((await call(`/api/v1/projects/${project.id}/collaboration/activity`, inactiveToken)).status, 403);
   assert.equal((await call(`/api/v1/projects/${project.id}/collaboration/activity`, tenantBToken)).status, 404);
+  assert.equal((await call(`/api/v1/projects/${project.id}`, viewerToken)).status, 200);
+  assert.equal((await call(`/api/v1/projects/${project.id}`, outsiderToken)).status, 403);
+  assert.equal((await call(`/api/v1/projects/${project.id}`, inactiveToken)).status, 403);
+  assert.equal((await call(`/api/v1/projects/${project.id}`, tenantBToken)).status, 404);
+  assert.equal((await call(`/api/v1/projects/${project.id}`, viewerToken, "PATCH", { name: "Unauthorized rename" })).status, 403);
+  assert.equal((await call(`/api/v1/projects/${project.id}`, projectManagerToken, "PATCH", { name: "Manager-approved rename" })).status, 200);
+  assert.equal((await call(`/api/v1/projects/${project.id}/work-items`, projectManagerToken, "POST", {
+    code: "TASK-MANAGER", title: "Project manager can create schedule items", startDate: "2026-02-01", endDate: "2026-02-02",
+  })).status, 201);
+  assert.equal((await call(`/api/v1/projects/${project.id}/work-items`, viewerToken, "POST", {
+    code: "TASK-DENIED", title: "Contributor cannot create schedule items", startDate: "2026-02-01", endDate: "2026-02-02",
+  })).status, 403);
+  assert.equal((await call(`/api/v1/projects/${project.id}/commercial/records`, outsiderToken)).status, 403);
+  assert.equal((await call(`/api/v1/projects/${project.id}/bim/models`, ownerToken)).status, 200);
   assert.equal((await call(`/api/v1/projects/${project.id}/members`, viewerToken, "POST", { userId: String(assignee._id), role: "viewer" })).status, 403);
   assert.equal((await call(`/api/v1/projects/${project.id}/members`, ownerToken, "POST", { userId: String(userB._id), role: "viewer" })).status, 404);
   assert.equal((await call(`/api/v1/projects/${project.id}/members`, ownerToken, "POST", { userId: String(invitee._id), role: "viewer" })).status, 201);
