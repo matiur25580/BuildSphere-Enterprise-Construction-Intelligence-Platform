@@ -102,7 +102,7 @@ A sustainability concept for embodied carbon, material impacts, waste diversion 
 | Authentication | JWT access tokens, bcrypt password hashing, opaque rotating refresh sessions |
 | Security | Helmet, CORS allowlist, rate limiting, request IDs, tenant-scoped queries |
 | Collaboration | MongoDB outbox, leased worker, idempotent delivery, retry/backoff and fencing |
-| Document security | Private filesystem adapter, SHA-256 integrity, ClamAV INSTREAM scanning |
+| Document security | Private filesystem/S3-compatible adapters, paginated orphan inventory, SHA-256 integrity, ClamAV INSTREAM scanning |
 | Quality gates | TypeScript builds, Node test runner, MongoDB replica-set integration tests, Docker image build |
 | Runtime | Multi-stage Docker image; API runs as non-root `node` |
 
@@ -313,7 +313,7 @@ CI success demonstrates that the checked-in build and automated test suite passe
 
 ## 9. Roadmap — next enterprise increments
 
-1. **Distributed document storage:** S3-compatible adapter, signed access, resumable multipart uploads, retention and orphan reconciliation.
+1. **Distributed document storage:** S3-compatible private object storage, resumable chunk uploads, age-gated orphan inventory and retryable cleanup; native S3 multipart and retention/legal-hold enforcement remain separate work.
 2. **BIM and drawing depth:** full BCF 2.1/3.0 import/export, IFC geometry/property extraction, model federation, WebGL viewer, automatic clash detection, DWG/RVT integrations and drawing markup.
 3. **Enterprise identity:** MFA, SSO/OIDC/SAML, SCIM provisioning, delegated administration and organization switching.
 4. **Project controls depth:** Gantt, critical path, schedule baselines, earned value, change control and resource loading.

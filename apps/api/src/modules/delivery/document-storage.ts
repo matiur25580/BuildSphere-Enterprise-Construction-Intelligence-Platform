@@ -1,6 +1,6 @@
 import { createConnection } from "node:net";
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { HttpError } from "../../common/http-error.js";
 
@@ -19,6 +19,7 @@ const digest = (value: Buffer | string) => createHash("sha256").update(value).di
 const hmac = (key: Buffer | string, value: string) => createHmac("sha256", key).update(value).digest();
 const awsEncode = (value: string) => encodeURIComponent(value).replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
 const validStorageKey = (key: string) => /^[a-zA-Z0-9_-]{1,128}$/.test(key);
+const managedDocumentStorageKey = (key: string) => /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(key);
 type S3Config = { endpoint: URL; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; sessionToken?: string };
 const s3Config = (): S3Config => {
   const endpointValue = process.env.S3_ENDPOINT, region = process.env.S3_REGION, bucket = process.env.S3_BUCKET;
@@ -31,20 +32,22 @@ const s3Config = (): S3Config => {
   if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) throw new HttpError(503, "S3_BUCKET must be a valid bucket name");
   return { endpoint, region, bucket, accessKeyId, secretAccessKey, sessionToken: process.env.S3_SESSION_TOKEN || undefined };
 };
-const signedS3Request = async (method: "PUT" | "GET" | "DELETE" | "HEAD", key?: string, body?: Buffer, contentType?: string): Promise<Response> => {
+const signedS3Request = async (method: "PUT" | "GET" | "DELETE" | "HEAD", key?: string, body?: Buffer, contentType?: string, query?: URLSearchParams): Promise<Response> => {
   const config = s3Config(), now = new Date();
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, ""), dateStamp = amzDate.slice(0, 8);
   const basePath = config.endpoint.pathname.replace(/\/$/, "");
   const objectPath = key ? `/${awsEncode(config.bucket)}/${awsEncode(key)}` : `/${awsEncode(config.bucket)}`;
   const canonicalUri = `${basePath}${objectPath}` || "/";
   const url = new URL(config.endpoint.toString()); url.pathname = canonicalUri;
+  const canonicalQuery = query ? Array.from(query.entries()).sort(([a, av], [b, bv]) => a.localeCompare(b) || av.localeCompare(bv)).map(([name, value]) => `${awsEncode(name)}=${awsEncode(value)}`).join("&") : "";
+  url.search = canonicalQuery ? `?${canonicalQuery}` : "";
   const payloadHash = digest(body ?? Buffer.alloc(0));
   const headers: Record<string,string> = { host: url.host, "x-amz-content-sha256": payloadHash, "x-amz-date": amzDate };
   if (contentType) headers["content-type"] = contentType;
   if (config.sessionToken) headers["x-amz-security-token"] = config.sessionToken;
   const signedHeaders = Object.keys(headers).sort().join(";");
   const canonicalHeaders = Object.keys(headers).sort().map(name => `${name}:${headers[name].trim()}\n`).join("");
-  const canonicalRequest = [method, canonicalUri, "", canonicalHeaders, signedHeaders, payloadHash].join("\n");
+  const canonicalRequest = [method, canonicalUri, canonicalQuery, canonicalHeaders, signedHeaders, payloadHash].join("\n");
   const scope = `${dateStamp}/${config.region}/s3/aws4_request`;
   const stringToSign = ["AWS4-HMAC-SHA256", amzDate, scope, digest(canonicalRequest)].join("\n");
   const dateKey = hmac(`AWS4${config.secretAccessKey}`, dateStamp);
@@ -57,6 +60,61 @@ const signedS3Request = async (method: "PUT" | "GET" | "DELETE" | "HEAD", key?: 
   try { return await fetch(url,{method,headers:requestHeaders,body:method === "PUT" && body ? Uint8Array.from(body) : undefined,signal:AbortSignal.timeout(15000)}); }
   catch { throw new HttpError(503,"S3 document storage is unavailable"); }
 };
+
+export type DocumentStorageObject = { key: string; lastModified: Date };
+export type DocumentStoragePage = { objects: DocumentStorageObject[]; nextCursor?: string };
+
+const decodeXml = (value: string) => value
+  .replace(/&#x([0-9a-f]+);/gi, (_match, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+  .replace(/&#(\d+);/g, (_match, decimal: string) => String.fromCodePoint(Number.parseInt(decimal, 10)))
+  .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+  .replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+
+export const listDocumentObjects = async (cursor?: string, limit = 100): Promise<DocumentStoragePage> => {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new HttpError(400, "Document inventory page size must be between 1 and 1000");
+  if (documentStorageDriver() === "s3") {
+    const query = new URLSearchParams({ "list-type": "2", "max-keys": String(limit) });
+    if (cursor) query.set("continuation-token", cursor);
+    const response = await signedS3Request("GET", undefined, undefined, undefined, query);
+    if (!response.ok) throw new HttpError(503, "S3 document storage could not list private objects");
+    const xml = await response.text();
+    const objects: DocumentStorageObject[] = [];
+    for (const match of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
+      const keyMatch = match[1].match(/<Key>([\s\S]*?)<\/Key>/);
+      const modifiedMatch = match[1].match(/<LastModified>([\s\S]*?)<\/LastModified>/);
+      if (!keyMatch || !modifiedMatch) continue;
+      const key = decodeXml(keyMatch[1]);
+      const lastModified = new Date(modifiedMatch[1]);
+      if (managedDocumentStorageKey(key) && Number.isFinite(lastModified.getTime())) objects.push({ key, lastModified });
+    }
+    const truncated = /<IsTruncated>true<\/IsTruncated>/i.test(xml);
+    const tokenMatch = xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/);
+    const nextCursor = truncated && tokenMatch ? decodeXml(tokenMatch[1]) : undefined;
+    if (truncated && !nextCursor) throw new HttpError(503, "S3 document inventory returned an invalid continuation token");
+    return { objects, nextCursor };
+  }
+
+  const directory = documentStorageDirectory();
+  let entries;
+  try { entries = await readdir(directory, { withFileTypes: true }); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { objects: [] };
+    throw new HttpError(503, "Private document storage could not be inventoried");
+  }
+  const keys = entries.filter((entry) => entry.isFile() && managedDocumentStorageKey(entry.name)).map((entry) => entry.name).sort().filter((key) => !cursor || key > cursor);
+  const pageKeys = keys.slice(0, limit + 1);
+  const hasMore = pageKeys.length > limit;
+  const selected = pageKeys.slice(0, limit);
+  const objects: DocumentStorageObject[] = [];
+  for (const key of selected) {
+    try {
+      const metadata = await stat(join(directory, key));
+      if (metadata.isFile()) objects.push({ key, lastModified: metadata.mtime });
+    } catch { /* An object removed during listing is no longer a candidate. */ }
+  }
+  return { objects, nextCursor: hasMore && selected.length ? selected[selected.length - 1] : undefined };
+};
+
 export const documentStorageDriver = () => {
   const driver=(process.env.DOCUMENT_STORAGE_DRIVER ?? "filesystem").toLowerCase();
   if(driver!=="filesystem" && driver!=="s3") throw new HttpError(503,"DOCUMENT_STORAGE_DRIVER must be filesystem or s3");
