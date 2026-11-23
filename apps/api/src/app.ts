@@ -18,6 +18,7 @@ import notificationRoutes from "./modules/collaboration/notification.routes.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { createRequestId, isAllowedOrigin, parseAllowedOrigins, parseTrustProxy } from "./config/security.js";
 import { getCollaborationTransactionStatus } from "./modules/collaboration/collaboration.service.js";
+import { documentStorageHealthCheck } from "./modules/delivery/document-storage.js";
 
 const app = express();
 const allowedOrigins = parseAllowedOrigins(process.env.CLIENT_URL);
@@ -61,13 +62,25 @@ app.get("/api/v1/health", (_request, response) => {
   });
 });
 
-app.get("/api/v1/ready", (_request, response) => {
-  const ready = mongoose.connection.readyState === 1;
+app.get("/api/v1/ready", async (_request, response) => {
+  const mongodbReady = mongoose.connection.readyState === 1;
+  let storageReady = false;
+  try {
+    await documentStorageHealthCheck();
+    storageReady = true;
+  } catch {
+    storageReady = false;
+  }
+  const ready = mongodbReady && storageReady;
   response.status(ready ? 200 : 503).json({
     success: ready,
     service: "BuildSphere API",
     status: ready ? "ready" : "not_ready",
-    dependencies: { mongodb: ready ? "connected" : "disconnected", collaborationOutboxTransactions: getCollaborationTransactionStatus() },
+    dependencies: {
+      mongodb: mongodbReady ? "connected" : "disconnected",
+      documentStorage: storageReady ? "available" : "unavailable",
+      collaborationOutboxTransactions: getCollaborationTransactionStatus(),
+    },
     timestamp: new Date().toISOString(),
   });
 });
