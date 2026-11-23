@@ -38,7 +38,7 @@ const authenticateRequest = (requireActiveOrganization: boolean) =>
         Membership.exists({
           userId: payload.sub,
           organizationId: payload.organizationId,
-          role: payload.role,
+          role: payload.role as "owner" | "admin" | "project_manager" | "member" | "viewer",
           status: "active",
         }),
         requireActiveOrganization
