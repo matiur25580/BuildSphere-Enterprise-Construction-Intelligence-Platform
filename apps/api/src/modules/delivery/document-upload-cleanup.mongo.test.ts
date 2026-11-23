@@ -1,14 +1,14 @@
 import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
 import mongoose from "mongoose";
-import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { DocumentUploadSession } from "./document-upload-session.model.js";
 import { DocumentAsset } from "./document-asset.model.js";
 import { putDocumentObject } from "./document-storage.js";
-import { reconcileExpiredDocumentUploads } from "./document-upload-cleanup.service.js";
+import { reconcileExpiredDocumentUploads, reconcileOrphanDocumentObjects } from "./document-upload-cleanup.service.js";
 
 const mongoUri = process.env.MONGODB_URI?.replace("buildsphere_ci", "buildsphere_upload_cleanup_ci");
 let storageDirectory = "";
@@ -74,4 +74,35 @@ test("expired sessions and abandoned completion objects are cleaned without dele
   await assert.rejects(readFile(join(storageDirectory, abandonedFinalKey)));
   assert.deepEqual(await readFile(join(storageDirectory, referencedFinalKey)), bytes);
   assert.equal(await DocumentUploadSession.countDocuments({ _id: { $in: [expired._id, abandoned._id, referenced._id] } }), 0);
+});
+
+test("inventory removes only old unreferenced objects and preserves assets and recent uploads", async () => {
+  const organizationId = new mongoose.Types.ObjectId();
+  const projectId = new mongoose.Types.ObjectId();
+  const documentId = new mongoose.Types.ObjectId();
+  const uploadedBy = new mongoose.Types.ObjectId();
+  const staleOrphanKey = randomUUID();
+  const recentOrphanKey = randomUUID();
+  const referencedKey = randomUUID();
+  const bytes = Buffer.from("inventory fixture");
+  await Promise.all([
+    putDocumentObject(staleOrphanKey, bytes, "application/octet-stream"),
+    putDocumentObject(recentOrphanKey, bytes, "application/octet-stream"),
+    putDocumentObject(referencedKey, bytes, "application/octet-stream"),
+  ]);
+  const staleDate = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  await utimes(join(storageDirectory, staleOrphanKey), staleDate, staleDate);
+  await DocumentAsset.create({
+    organizationId, projectId, documentId, version: 1, storageKey: referencedKey, fileName: "retained.pdf",
+    contentType: "application/pdf", byteSize: bytes.length, sha256: "c".repeat(64), scanStatus: "clean", uploadedBy,
+  });
+
+  const result = await reconcileOrphanDocumentObjects(new Date());
+  assert.equal(result.examined >= 3, true);
+  assert.equal(result.deleted, 1);
+  assert.equal(result.retained, 1);
+  assert.equal(result.recent >= 1, true);
+  await assert.rejects(readFile(join(storageDirectory, staleOrphanKey)));
+  assert.deepEqual(await readFile(join(storageDirectory, referencedKey)), bytes);
+  assert.deepEqual(await readFile(join(storageDirectory, recentOrphanKey)), bytes);
 });
