@@ -105,6 +105,8 @@ See [Authentication API](docs/api/authentication.md) and [Authentication Securit
 9. Tenant-scoped collaboration, notifications and activity feed.
 10. Project membership, task assignment and reliable collaboration.
 11. Workflow-wide collaboration event coverage and worker fencing.
+12. Transactional outbox, HTTP authorization and audit reliability.
+13. Organization member administration and governance.
 
 ## Project portfolio milestone scope
 
@@ -128,7 +130,7 @@ Not yet implemented: direct photo uploads/object storage, offline-first sync, pa
 
 Implemented: project-scoped quality inspections with checklist outcomes and review states; non-conformance reports with corrective/preventive action ownership, due dates and verification gates; hazard, near-miss and incident registers; RFI submission and response; submittal review outcomes; controlled project document records with numbered versions and approval history. All operations derive tenant scope from authenticated membership and validate project ownership. See [Quality, Safety, Documents and Approvals API](docs/api/quality-safety-documents.md).
 
-Not yet implemented: binary uploads/object storage, malware scanning, immutable/tamper-evident audit ledger, notification/escalation, electronic signatures, offline workflows, regulatory incident submissions, and full integration-test infrastructure. Treat file URLs as references only; they are not proof of secure file access.
+Not yet implemented: binary uploads/object storage, malware scanning, cryptographically tamper-evident audit ledger, notification/escalation, electronic signatures, offline workflows and regulatory incident submissions. Treat file URLs as references only; they are not proof of secure file access.
 
 ## AI project intelligence milestone scope
 
@@ -140,7 +142,7 @@ Important: the current intelligence engine uses deterministic heuristics and key
 
 Implemented: registration, login, password hashing, JWT access tokens, rotating refresh sessions, logout, authenticated profile, organization creation, owner membership, role middleware, and authentication rate limiting.
 
-Not yet implemented: email verification, password reset delivery, MFA, organization switching, and membership administration. Do not treat this milestone as production-ready security without the testing and controls described in the security documentation.
+Not yet implemented: email verification, password reset delivery, MFA, organization switching, and email-based invitations. Organization owner/admin member administration is available in Phase 13; it manages existing accounts only. Do not treat this milestone as production-ready security without the testing and controls described in the security documentation.
 
 See [Architecture Overview](docs/architecture/overview.md).
 
@@ -187,3 +189,14 @@ Runtime topology is checked after MongoDB connects. Configure `OUTBOX_TRANSACTIO
 Added owner/admin/project-manager failed-event inspection and replay endpoints, with organization/project filters and replay actor/time/count metadata. Activity writes are append-only through application-level Mongoose APIs; idempotent creation is keyed by source event. This is not a tamper-evident ledger against direct database administrators.
 
 Verification covers transaction rollback/commit, expired worker lease recovery, idempotent delivery retry, notification ownership, HTTP/JWT cross-tenant denial, active/inactive project membership, role restrictions, member addition, task assignment, safety and commercial event creation, and failed-event replay authorization. CI does not yet constitute a full browser end-to-end suite. Socket.IO, cryptographic audit chaining/external immutable storage, broader workflow HTTP coverage, and an operator-facing UI for failed events remain follow-up work.
+
+
+## Phase 13 — Organization member administration and governance
+
+Owners and administrators now have an Organization members workspace. It lists organization-scoped memberships and account status, adds/reactivates existing active BuildSphere accounts by email, and updates organization roles or suspends/reactivates access. Owners alone can grant or revoke owner/admin privileges; administrators can manage non-elevated roles only. The backend enforces tenant scope from the authenticated token and prevents an organization from losing its last active owner.
+
+Membership mutations use MongoDB transactions and an organization-level revision write to serialize concurrent governance changes before checking owner invariants. These endpoints return `503` when the connected MongoDB topology does not support transactions; use a replica set or sharded cluster and set `OUTBOX_TRANSACTION_MODE=required` in production. Authentication rechecks membership status and role on each request, so suspended memberships and stale-role access tokens are rejected immediately.
+
+API: `GET /api/v1/organization/members`, `POST /api/v1/organization/members`, and `PATCH /api/v1/organization/members/:memberId`. See [Organization Membership API](docs/api/organization-membership.md).
+
+Limitations: members must already have active BuildSphere accounts; no invitation email, account recovery, MFA, organization switching, SCIM/bulk provisioning or dedicated organization audit stream is included. Project membership remains a separate permission layer.
