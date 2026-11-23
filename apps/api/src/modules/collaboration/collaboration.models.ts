@@ -20,6 +20,10 @@ const activitySchema = new Schema({
   sourceEventId: { type: Schema.Types.ObjectId },
 }, { timestamps: { createdAt: true, updatedAt: false } });
 activitySchema.index({ organizationId: 1, projectId: 1, createdAt: -1, _id: -1 });
+activitySchema.pre("save", function () { if (!this.isNew) throw new Error("Activity records are append-only"); });
+for (const operation of ["updateOne", "updateMany", "findOneAndUpdate", "replaceOne", "deleteOne", "deleteMany", "findOneAndDelete"] as const) {
+  activitySchema.pre(operation, function () { throw new Error("Activity records are append-only"); });
+}
 activitySchema.index({ sourceEventId: 1 }, { unique: true, sparse: true });
 
 const notificationSchema = new Schema({
