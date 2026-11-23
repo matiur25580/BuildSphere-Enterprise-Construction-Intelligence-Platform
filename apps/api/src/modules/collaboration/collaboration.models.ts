@@ -1,7 +1,7 @@
 import { Schema, model } from "mongoose";
 
 const eventTypes = [
-  "commercial.record_created", "commercial.status_changed",
+  "commercial.record_created", "commercial.status_changed", "tasks.assigned",
   "quality.inspection_created", "quality.inspection_status_changed", "quality.ncr_created", "quality.ncr_status_changed",
   "quality.capa_created", "quality.capa_status_changed", "safety.event_created",
   "coordination.rfi_created", "coordination.rfi_submitted", "coordination.rfi_responded",
@@ -17,8 +17,10 @@ const activitySchema = new Schema({
   targetType: { type: String, required: true, maxlength: 40 },
   targetId: { type: Schema.Types.ObjectId, required: true },
   summary: { type: String, required: true, maxlength: 240 },
+  sourceEventId: { type: Schema.Types.ObjectId, default: null },
 }, { timestamps: { createdAt: true, updatedAt: false } });
 activitySchema.index({ organizationId: 1, projectId: 1, createdAt: -1, _id: -1 });
+activitySchema.index({ sourceEventId: 1 }, { unique: true, sparse: true });
 
 const notificationSchema = new Schema({
   organizationId: { type: Schema.Types.ObjectId, required: true, index: true },
@@ -31,6 +33,7 @@ const notificationSchema = new Schema({
 }, { timestamps: true });
 notificationSchema.index({ organizationId: 1, recipientId: 1, createdAt: -1, _id: -1 });
 notificationSchema.index({ organizationId: 1, recipientId: 1, readAt: 1, createdAt: -1 });
+notificationSchema.index({ activityId: 1, recipientId: 1 }, { unique: true });
 
 export const Activity = model("Activity", activitySchema);
 export const Notification = model("Notification", notificationSchema);
