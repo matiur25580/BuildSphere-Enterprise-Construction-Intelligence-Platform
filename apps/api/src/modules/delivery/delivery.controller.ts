@@ -146,7 +146,7 @@ export const downloadDocumentFile = asyncHandler(async (request: Request, respon
     const digest = createHash("sha256");
     await new Promise<void>((resolve, reject) => {
       const verifier = createReadStream(filePath);
-      verifier.on("data", (chunk: Buffer) => { digest.update(chunk); });
+      verifier.on("data", (chunk) => { digest.update(chunk); });
       verifier.on("end", resolve);
       verifier.on("error", reject);
     });
