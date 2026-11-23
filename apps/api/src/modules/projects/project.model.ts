@@ -10,7 +10,7 @@ const projectSchema = new Schema({
   status: { type: String, enum: ["planning", "active", "on_hold", "completed", "cancelled"], default: "planning", index: true },
   startDate: { type: Date, required: true },
   targetEndDate: { type: Date, required: true },
-  budget: { type: Schema.Types.Decimal128, min: "0", default: "0.00" },
+  budget: { type: Schema.Types.Decimal128, default: "0.00" },
   currency: { type: String, uppercase: true, minlength: 3, maxlength: 3, default: "USD" },
   createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
 }, { timestamps: true });
