@@ -36,24 +36,25 @@ export const addOrganizationMember = asyncHandler(async (request: Request, respo
   const auth = context(request);
   assertTransactionSupport();
   const input = addOrganizationMemberSchema.parse(request.body);
-  canManageElevatedRole(auth.role, undefined, input.role);
-  const user = await User.findOne({ email: input.email, status: "active" }).select("_id name email");
-  if (!user) throw new HttpError(404, "An active BuildSphere account with this email was not found");
-  let created;
+  let createdId: mongoose.Types.ObjectId | undefined;
   await mongoose.connection.transaction(async (session) => {
     await Organization.updateOne({ _id: auth.organizationId }, { $inc: { membershipRevision: 1 } }, { session });
+    const user = await User.findOne({ email: input.email, status: "active" }).select("_id").session(session);
+    if (!user) throw new HttpError(404, "An active BuildSphere account with this email was not found");
     const existing = await Membership.findOne({ organizationId: auth.organizationId, userId: user._id }).session(session);
+    canManageElevatedRole(auth.role, existing?.role, input.role);
     if (existing?.status === "active") throw new HttpError(409, "This user is already an active organization member");
     if (existing) {
       existing.role = input.role;
       existing.status = "active";
       await existing.save({ session });
-      created = existing;
+      createdId = existing._id;
     } else {
-      [created] = await Membership.create([{ organizationId: auth.organizationId, userId: user._id, role: input.role, status: "active" }], { session });
+      const [created] = await Membership.create([{ organizationId: auth.organizationId, userId: user._id, role: input.role, status: "active" }], { session });
+      createdId = created._id;
     }
   }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } });
-  const result = await Membership.findById(created?._id).populate("userId", "name email status lastLoginAt");
+  const result = await Membership.findById(createdId).populate("userId", "name email status lastLoginAt");
   response.status(201).json({ success: true, data: result });
 });
 
