@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deleteDocumentFile, documentStorageDirectory, normalizeDocumentFile, readDocumentFile, storeDocumentFile } from "./document-storage.js";
+import { assertDocumentStorageConfigured, deleteDocumentFile, documentStorageDirectory, documentStorageHealthCheck, normalizeDocumentFile, readDocumentFile, storeDocumentFile } from "./document-storage.js";
 
 let directory = "";
 const previous = {
@@ -43,4 +43,20 @@ test("document file normalization validates extension, content type and signatur
   assert.equal(normalized.contentType, "application/pdf");
   assert.throws(() => normalizeDocumentFile(Buffer.from("not a PDF"), "foundation-plan.pdf", "application/pdf"));
   assert.throws(() => normalizeDocumentFile(bytes, "foundation-plan.pdf", "text/plain"));
+});
+
+test("storage configuration fails closed in production and local storage passes readiness", async () => {
+  assert.doesNotThrow(() => assertDocumentStorageConfigured());
+  await documentStorageHealthCheck();
+
+  delete process.env.DOCUMENT_STORAGE_PROVIDER;
+  process.env.NODE_ENV = "production";
+  assert.throws(() => assertDocumentStorageConfigured());
+
+  process.env.NODE_ENV = "test";
+  process.env.DOCUMENT_STORAGE_PROVIDER = "unsupported";
+  assert.throws(() => assertDocumentStorageConfigured());
+
+  process.env.DOCUMENT_STORAGE_PROVIDER = "local";
+  assert.doesNotThrow(() => assertDocumentStorageConfigured());
 });
