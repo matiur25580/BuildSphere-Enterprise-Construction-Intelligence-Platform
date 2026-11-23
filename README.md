@@ -300,14 +300,14 @@ All protected routes use bearer access tokens. See the linked API documents for 
 
 ## 8. CI and verification
 
-GitHub Actions runs on pushes and pull requests to `main`. The pipeline:
+GitHub Actions runs on pushes to all branches and on pull requests targeting any branch, so stacked feature branches receive the same validation as pull requests targeting `main`. Superseded runs for the same workflow/ref are cancelled. The pipeline:
 1. Starts a MongoDB 7 single-node replica set.
 2. Installs workspace dependencies on Node.js 22.
 3. Builds API and web workspaces.
 4. Runs API unit tests and MongoDB-backed integration tests.
 5. Builds the production API Docker image.
 
-Tests cover security configuration, intelligence rules, collaboration scoping, notification ownership, HTTP/JWT role and tenant boundaries, transactional outbox rollback/commit, worker lease recovery/fencing, organization governance, secure document upload/download scanning and authorization, IFC upload validation, BIM model registration, IFC GlobalId issue references, viewpoint validation, and BIM tenant/role boundaries.
+Tests cover security configuration, intelligence rules, collaboration scoping, notification ownership, HTTP/JWT role and tenant boundaries, transactional outbox rollback/commit, worker lease recovery/fencing, organization governance, exact commercial decimal schemas, local and S3 document-storage configuration and readiness timeouts, secure document upload/download scanning and authorization, IFC upload validation, BIM model registration, IFC GlobalId issue references, viewpoint validation, and BIM tenant/role boundaries.
 
 CI success demonstrates that the checked-in build and automated test suite passed in that CI environment. It does not certify a production deployment, a real ClamAV signature database, cloud storage durability, compliance, penetration testing or live operational readiness.
 
