@@ -2,7 +2,7 @@ import { Schema, model } from "mongoose";
 
 const eventTypes = [
   "commercial.record_created", "commercial.status_changed",
-  "quality.inspection_created", "quality.ncr_created", "quality.ncr_status_changed",
+  "quality.inspection_created", "quality.inspection_status_changed", "quality.ncr_created", "quality.ncr_status_changed",
   "quality.capa_created", "quality.capa_status_changed", "safety.event_created",
   "coordination.rfi_created", "coordination.rfi_submitted", "coordination.rfi_responded",
   "coordination.submittal_created", "coordination.submittal_submitted", "coordination.submittal_reviewed",
