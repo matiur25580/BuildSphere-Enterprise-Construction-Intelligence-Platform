@@ -245,6 +245,16 @@ test("HTTP/JWT routes enforce notification ownership, project membership, role a
   const safetyBody = await safety.json() as { data: { _id: string } };
   assert.ok(await CollaborationOutbox.exists({ targetId: safetyBody.data._id, eventType: "safety.event_created", actorId: userA._id, organizationId: orgA._id }));
 
+  assert.equal((await call(`/api/v1/projects/${project.id}/commercial/records`, viewerToken, "POST", {
+    type: "purchase_order", reference: "PO-DENIED", counterparty: "Supplier", amount: 1200, issueDate: "2026-11-20T00:00:00.000Z",
+  })).status, 403);
+  const commercial = await call(`/api/v1/projects/${project.id}/commercial/records`, ownerToken, "POST", {
+    type: "purchase_order", reference: "PO-HTTP", counterparty: "Supplier", amount: 1200, issueDate: "2026-11-20T00:00:00.000Z",
+  });
+  assert.equal(commercial.status, 201);
+  const commercialBody = await commercial.json() as { data: { _id: string } };
+  assert.ok(await CollaborationOutbox.exists({ targetId: commercialBody.data._id, eventType: "commercial.record_created", actorId: userA._id, organizationId: orgA._id }));
+
   const failedEvent = await CollaborationOutbox.create({
     organizationId: orgA._id, projectId: project._id, actorId: userA._id, eventType: "tasks.assigned",
     targetType: "work_item", targetId: new mongoose.Types.ObjectId(), summary: "Failed event for replay",
