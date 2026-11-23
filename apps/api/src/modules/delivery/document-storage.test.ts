@@ -52,7 +52,6 @@ test("ClamAV readiness sends the null-terminated PING command", async () => {
     assert.equal(await checkClamAvHealth(), true);
     assert.deepEqual(received, Buffer.from("zPING\0", "binary"));
   } finally {
-    server.closeAllConnections?.();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     if (previousHost === undefined) delete process.env.CLAMD_HOST; else process.env.CLAMD_HOST = previousHost;
     if (previousPort === undefined) delete process.env.CLAMD_PORT; else process.env.CLAMD_PORT = previousPort;
