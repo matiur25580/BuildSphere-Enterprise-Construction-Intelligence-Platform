@@ -57,6 +57,12 @@ export function CommercialWorkspace({ project, token, onClose }: { project: Proj
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to save cost code"); }
   };
   const money = (amount: number, currency: string) => new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
+  const moveStatus = async (item: RecordItem, status: string) => {
+    try {
+      await request("/projects/" + project._id + "/commercial/records/" + item._id + "/status", token, { method: "PATCH", body: JSON.stringify({ status }) });
+      await refresh();
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to update status"); }
+  };
 
   return <section className="commercial-panel">
     <div className="panel-heading"><div><p className="eyebrow">COMMERCIAL CONTROL / {project.code}</p><h2>{project.name} · Financials</h2></div><button className="ghost-button" onClick={onClose}>Close</button></div>
@@ -91,7 +97,7 @@ export function CommercialWorkspace({ project, token, onClose }: { project: Proj
         </form>
       </div>
       <h3 className="subheading">Commercial register ({records.length})</h3>
-      <div className="records-list">{records.map((item) => <article className="record-row" key={item._id}><div><b>{item.reference}</b><span>{item.type.replace("_", " ")} · {item.counterparty}</span></div><div><strong>{money(item.amount, item.currency)}</strong><span className={"status-pill status-" + (item.status === "paid" ? "completed" : item.status === "rejected" ? "cancelled" : "planning")}>{item.status}</span></div></article>)}</div>
+      <div className="records-list">{records.map((item) => <article className="record-row" key={item._id}><div><b>{item.reference}</b><span>{item.type.replace("_", " ")} · {item.counterparty}</span></div><div><strong>{money(item.amount, item.currency)}</strong><span className={"status-pill status-" + (item.status === "paid" ? "completed" : item.status === "rejected" ? "cancelled" : "planning")}>{item.status}</span>{item.status === "draft" && <button type="button" className="record-action" onClick={() => void moveStatus(item, "submitted")}>Submit</button>}{item.status === "submitted" && <><button type="button" className="record-action" onClick={() => void moveStatus(item, "approved")}>Approve</button><button type="button" className="record-action reject-action" onClick={() => void moveStatus(item, "rejected")}>Reject</button></>}{item.status === "approved" && <button type="button" className="record-action" onClick={() => void moveStatus(item, "paid")}>Mark paid</button>}</div></article>)}</div>
     </>}
   </section>;
 }
