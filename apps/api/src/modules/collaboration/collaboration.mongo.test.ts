@@ -125,6 +125,7 @@ test("transactional domain writes roll back and commit with their outbox event",
   await runProjectMutationWithEvent(committedEvent, (session) => committedProject.save(session ? { session } : {}));
   assert.ok(await Project.exists({ _id: committedProject._id }));
   assert.equal(await CollaborationOutbox.countDocuments({ targetId: committedProject._id, status: "pending" }), 1);
+  await CollaborationOutbox.updateOne({ targetId: committedProject._id }, { $set: { status: "delivered" } });
 });
 
 test("outbox worker recovers expired leases and retries idempotently after partial delivery", async () => {
