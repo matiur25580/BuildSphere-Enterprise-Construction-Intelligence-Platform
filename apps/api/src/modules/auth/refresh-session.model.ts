@@ -1,8 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { Schema, model } from "mongoose";
 
 const refreshSessionSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    familyId: { type: String, default: randomUUID, index: true },
     tokenHash: { type: String, required: true, unique: true },
     expiresAt: { type: Date, required: true, index: true },
     revokedAt: { type: Date, default: null },
@@ -13,5 +15,6 @@ const refreshSessionSchema = new Schema(
   { timestamps: true },
 );
 
+refreshSessionSchema.index({ familyId: 1, revokedAt: 1 });
 refreshSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 export const RefreshSession = model("RefreshSession", refreshSessionSchema);
