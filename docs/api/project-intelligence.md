@@ -27,9 +27,9 @@ Performs keyword retrieval over the same current project evidence set and return
 - Organization scope comes only from the authenticated membership in `request.auth`; the caller cannot supply an organization ID.
 - The project must belong to the active organization before evidence is queried.
 - Each source collection query includes both organization and project identifiers.
-- The snapshot uses bounded reads (maximum 500 work/commercial/cost-code/CAPA records, 200 delivery records per register, and 100 daily reports) and is computed on demand, not persisted.
+- The snapshot uses bounded reads (maximum 500 work-item and commercial records, 300 CAPA actions, 200 delivery records per register, and 100 daily reports) and is computed on demand, not persisted.
 - This milestone does not provide predictive model training, schedule critical-path calculation, cash-flow forecasting, live integrations, vector search, LLM-based summarization, or a conversational agent. It does not replace project controls, safety leadership, or commercial review.
 
 ## Validation
 
-`npm test --workspace=@buildsphere/api` builds the API and runs isolated Node test-runner unit tests for risk scoring and evidence ranking. Database-backed authorization and tenant-isolation integration tests remain a separate hardening requirement.
+`npm test --workspace=@buildsphere/api` builds the API and runs isolated Node test-runner unit tests for risk scoring and evidence ranking. GitHub Actions runs this test command after the full API/web build. Database-backed authorization and tenant-isolation integration tests remain a separate hardening requirement.
