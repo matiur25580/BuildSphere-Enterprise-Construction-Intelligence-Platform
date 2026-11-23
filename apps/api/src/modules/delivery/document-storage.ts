@@ -53,7 +53,7 @@ export const checkClamAvHealth = async (): Promise<boolean> => {
       if (response.includes("PONG")) finish(true);
       else if (response.length > 128) finish(false);
     });
-    socket.on("connect", () => socket.write(Buffer.from("zPING\\0", "binary")));
+    socket.on("connect", () => socket.write(Buffer.from("zPING\0", "binary")));
   });
 };
 

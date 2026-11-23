@@ -1,10 +1,11 @@
 import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { assertDocumentStorageConfigured, deleteDocumentFile, documentStorageDirectory, documentStorageHealthCheck, documentStorageHealthTimeoutMs, normalizeDocumentFile, readDocumentFile, storeDocumentFile } from "./document-storage.js";
+import { assertDocumentStorageConfigured, checkClamAvHealth, deleteDocumentFile, documentStorageDirectory, documentStorageHealthCheck, documentStorageHealthTimeoutMs, normalizeDocumentFile, readDocumentFile, storeDocumentFile } from "./document-storage.js";
 
 let directory = "";
 const previous = {
@@ -25,6 +26,36 @@ after(async () => {
   if (previous.provider === undefined) delete process.env.DOCUMENT_STORAGE_PROVIDER; else process.env.DOCUMENT_STORAGE_PROVIDER = previous.provider;
   if (previous.directory === undefined) delete process.env.DOCUMENT_STORAGE_DIR; else process.env.DOCUMENT_STORAGE_DIR = previous.directory;
   if (previous.nodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previous.nodeEnv;
+});
+
+
+test("ClamAV readiness sends the null-terminated PING command", async () => {
+  const previousHost = process.env.CLAMD_HOST;
+  const previousPort = process.env.CLAMD_PORT;
+  let received = Buffer.alloc(0);
+  const server = createNetServer((socket) => {
+    socket.on("data", (chunk) => {
+      received = Buffer.concat([received, chunk]);
+      if (received.length >= 6) {
+        socket.end(received.equals(Buffer.from("zPING\0", "binary")) ? "PONG\0" : "UNKNOWN COMMAND\0");
+      }
+    });
+  });
+
+  try {
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    process.env.CLAMD_HOST = "127.0.0.1";
+    process.env.CLAMD_PORT = String(address.port);
+
+    assert.equal(await checkClamAvHealth(), true);
+    assert.deepEqual(received, Buffer.from("zPING\0", "binary"));
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    if (previousHost === undefined) delete process.env.CLAMD_HOST; else process.env.CLAMD_HOST = previousHost;
+    if (previousPort === undefined) delete process.env.CLAMD_PORT; else process.env.CLAMD_PORT = previousPort;
+  }
 });
 
 test("local storage provider stores, reads and deletes private document bytes", async () => {
