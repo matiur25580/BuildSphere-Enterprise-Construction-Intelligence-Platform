@@ -17,6 +17,9 @@ const outboxSchema = new Schema({
   leaseToken: { type: String, default: null, maxlength: 64 },
   lastError: { type: String, maxlength: 500, default: "" },
   deliveredAt: { type: Date, default: null },
+  replayCount: { type: Number, min: 0, default: 0 },
+  lastReplayedAt: { type: Date, default: null },
+  lastReplayedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
 }, { timestamps: true });
 
 outboxSchema.index({ status: 1, nextAttemptAt: 1, createdAt: 1 });
