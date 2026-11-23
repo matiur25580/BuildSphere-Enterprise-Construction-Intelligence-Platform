@@ -18,7 +18,8 @@ const documentUploadSessionSchema = new Schema({
   expectedSha256: { type: String, match: /^[a-f0-9]{64}$/ },
   expectedParts: { type: Number, required: true, min: 1, max: 5 },
   parts: { type: [uploadPartSchema], default: [] },
-  status: { type: String, enum: ["uploading", "completing", "completed", "aborted"], default: "uploading", index: true },
+  status: { type: String, enum: ["uploading", "completing", "cleaning", "completed", "aborted"], default: "uploading", index: true },
+  finalStorageKey: { type: String, match: /^[a-f0-9-]{36}$/ },
   expiresAt: { type: Date, required: true, index: true },
 }, { timestamps: true });
 documentUploadSessionSchema.index({ organizationId: 1, projectId: 1, documentId: 1, createdBy: 1, status: 1 });
