@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 const dateValue = z.coerce.date();
+const budgetValue = z.preprocess(
+  (value) => typeof value === "number" && Number.isFinite(value) ? value.toString() : value,
+  z.string().regex(/^(?:0|[1-9]\d{0,14})(?:\.\d{1,4})?$/, "Enter a budget with up to 4 decimal places"),
+);
+const currencyCode = z.string().trim().regex(/^[A-Za-z]{3}$/).transform((value) => value.toUpperCase());
 export const createProjectSchema = z.object({
   code: z.string().trim().min(2).max(24).regex(/^[a-zA-Z0-9-]+$/),
   name: z.string().trim().min(2).max(160),
@@ -9,8 +14,8 @@ export const createProjectSchema = z.object({
   location: z.string().max(240).optional(),
   startDate: dateValue,
   targetEndDate: dateValue,
-  budget: z.coerce.number().min(0).default(0),
-  currency: z.string().length(3).default("USD"),
+  budget: budgetValue.default("0.00"),
+  currency: currencyCode.default("USD"),
 }).refine((value) => value.targetEndDate >= value.startDate, {
   message: "Target end date must be on or after the start date",
   path: ["targetEndDate"],
@@ -24,8 +29,8 @@ export const updateProjectSchema = z.object({
   status: z.enum(["planning", "active", "on_hold", "completed", "cancelled"]).optional(),
   startDate: dateValue.optional(),
   targetEndDate: dateValue.optional(),
-  budget: z.coerce.number().min(0).optional(),
-  currency: z.string().length(3).optional(),
+  budget: budgetValue.optional(),
+  currency: currencyCode.optional(),
 }).refine((value) => Object.keys(value).length > 0, "At least one field is required");
 
 export const createWorkItemSchema = z.object({
