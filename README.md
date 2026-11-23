@@ -1,202 +1,336 @@
 # BuildSphere
+## Enterprise Construction Intelligence & Project Delivery Platform
 
-**Enterprise Construction Intelligence & Project Delivery Platform**
+**One connected workspace for construction portfolios, project controls, field delivery, commercial performance, quality, safety and controlled information.**
 
-BuildSphere is an AI-assisted construction operations platform designed to connect project planning, commercial control, field execution, quality, safety, and delivery intelligence in one workspace.
+BuildSphere is a multi-tenant construction technology platform built around a practical delivery lifecycle: plan the work, control cost and commitments, coordinate the field, assure quality and safety, govern project information, and turn operational evidence into actionable decisions.
 
-> Project status: active development. The foundation, authentication, project portfolio, commercial management, field operations, and first quality/safety/document-control workflows are implemented; broader capabilities are being delivered incrementally.
+> **Project status:** Active engineering project. The repository contains a working React/Express/MongoDB foundation and implemented workflow modules. It is not a certified construction-management system and should not be represented as production-ready without deployment-specific security, storage, legal, financial and operational validation.
 
-## Product direction
+---
 
-- Project portfolio, work breakdown structures, dependencies, milestones, and schedule visibility.
-- Budget, commitments, procurement, invoices, and cash-flow controls.
-- Contractor coordination and field reporting.
-- Quality inspections, non-conformance workflows, safety observations, and corrective actions.
-- RFIs, submittals, change orders, approvals, and versioned project documents.
-- Evidence-led AI assistance for schedule risk, cost risk, and project reporting.
-- Enterprise organizations, role-based access, audit trails, and tenant isolation.
+## 1. Product at a glance
 
-## Technology
+- **Portfolio command centre:** project overview, delivery status, budgets and portfolio-level visibility.
+- **Project controls:** project records, work breakdown structure, tasks, milestones, dependencies and assignment.
+- **Commercial management:** cost codes, allocated budgets, purchase orders, invoices, payment claims and commercial summaries.
+- **Procurement visibility:** commercial commitments and supply-chain signals captured through project records.
+- **Field operations:** contractor records, daily site reports, labour and equipment entries, progress, delays and site evidence references.
+- **Quality management:** inspections, checklist results, non-conformance reports (NCRs) and corrective/preventive actions (CAPA).
+- **Health, safety and environment:** hazards, near misses, incident records, status workflows and immediate actions.
+- **Project coordination:** RFIs, submittals, review outcomes and document approvals.
+- **Controlled document register:** version history, approval history, private binary uploads, malware scanning, integrity checks and authenticated downloads.
+- **Project intelligence:** explainable schedule, commercial, quality, safety and coordination risk signals with linked source evidence.
+- **Collaboration:** project membership, task assignment, notification inbox, activity feed and a transaction-backed event outbox.
+- **Organization governance:** owner/admin membership controls and safeguards against removing the last active owner.
 
-- **Frontend:** React, TypeScript, Vite.
-- **Backend:** Node.js, Express, TypeScript.
-- **Data:** MongoDB with Mongoose.
-- **Client data:** Redux Toolkit and TanStack Query (planned for feature workflows).
-- **Validation:** Zod.
-- **Authentication:** bcrypt password hashing, short-lived JWT access tokens, rotating opaque refresh sessions, HttpOnly cookies.
-- **UI:** responsive sign-in and organization registration experience.
+## 2. Illustrative product screens
 
-## Repository structure
+The following **12 dashboard images are illustrative UI concepts** created for product communication. They use synthetic names, values and status indicators; they are not screenshots of live production data or proof that every depicted chart/widget is currently implemented. Each screen is presented in a single-column sequence.
+
+### 01 — Portfolio overview
+Executive view across projects, portfolio value, cost performance and delivery health.
+
+![BuildSphere illustrative portfolio overview](docs/screenshots/01-portfolio.svg)
+
+### 02 — Project command centre
+A project-level briefing view combining contract value, cost-to-date, physical progress and forecast completion.
+
+![BuildSphere illustrative project command centre](docs/screenshots/02-projects.svg)
+
+### 03 — Schedule and lookahead
+A planning concept for near-term work, milestone exposure, critical float and constraint removal.
+
+![BuildSphere illustrative schedule dashboard](docs/screenshots/03-schedule.svg)
+
+### 04 — Commercial controls
+A commercial performance concept for budgets, commitments, paid-to-date values and forecast variance.
+
+![BuildSphere illustrative commercial dashboard](docs/screenshots/04-commercial.svg)
+
+### 05 — Procurement and supply chain
+A procurement concept showing package readiness, long-lead materials, supplier commitments and delivery confidence.
+
+![BuildSphere illustrative procurement dashboard](docs/screenshots/05-procurement.svg)
+
+### 06 — Field operations
+A site operations concept for workforce, daily reports, equipment utilisation, installed quantities and field queries.
+
+![BuildSphere illustrative field operations dashboard](docs/screenshots/06-field-ops.svg)
+
+### 07 — Quality assurance
+A quality-control concept for inspections, first-pass performance, open NCRs and overdue corrective actions.
+
+![BuildSphere illustrative quality dashboard](docs/screenshots/07-quality.svg)
+
+### 08 — Health, safety and environment
+A safety and environmental concept for safe-work hours, observations, high-risk controls and compliance indicators.
+
+![BuildSphere illustrative HSE dashboard](docs/screenshots/08-hse.svg)
+
+### 09 — Document control / common data environment
+A controlled-information concept for revisions, approval queues, secure files and traceable project records.
+
+![BuildSphere illustrative document control dashboard](docs/screenshots/09-documents.svg)
+
+### 10 — AI project intelligence
+An explainable decision-support concept for evidence-backed schedule, commercial and quality risk signals.
+
+![BuildSphere illustrative project intelligence dashboard](docs/screenshots/10-intelligence.svg)
+
+### 11 — Team collaboration
+A collaboration concept for project membership, notifications, assignments and decision follow-through.
+
+![BuildSphere illustrative collaboration dashboard](docs/screenshots/11-collaboration.svg)
+
+### 12 — ESG and carbon performance
+A sustainability concept for embodied carbon, material impacts, waste diversion and responsible procurement.
+
+![BuildSphere illustrative ESG dashboard](docs/screenshots/12-sustainability.svg)
+
+---
+
+## 3. Technology stack
+
+| Layer | Technology |
+|---|---|
+| Web application | React 19, TypeScript, Vite |
+| API | Node.js 22+, Express 5, TypeScript |
+| Persistence | MongoDB 7+, Mongoose 8 |
+| Validation | Zod |
+| Authentication | JWT access tokens, bcrypt password hashing, opaque rotating refresh sessions |
+| Security | Helmet, CORS allowlist, rate limiting, request IDs, tenant-scoped queries |
+| Collaboration | MongoDB outbox, leased worker, idempotent delivery, retry/backoff and fencing |
+| Document security | Private filesystem adapter, SHA-256 integrity, ClamAV INSTREAM scanning |
+| Quality gates | TypeScript builds, Node test runner, MongoDB replica-set integration tests, Docker image build |
+| Runtime | Multi-stage Docker image; API runs as non-root `node` |
+
+The repository is an npm workspace monorepo:
 
 ```text
 apps/
-  api/          Express API and domain modules
-  web/          React web application
+  api/                 Express API, domain modules and integration tests
+  web/                 React application and workflow workspaces
 packages/
-  shared/       Shared contracts and constants
+  shared/              Shared contracts and constants
 docs/
-  architecture/
-  api/
-  security/
+  api/                 API and workflow documentation
+  architecture/        Architecture decisions and system overview
+  security/            Security and operational guidance
+  screenshots/         12 illustrative SVG dashboard concepts
 infrastructure/
+  docker/              Local and deployment infrastructure notes
+.github/workflows/     CI pipeline
+Dockerfile             Production API container build
 ```
 
-## Getting started
+## 4. Implemented product capabilities
+
+### 4.1 Identity, organizations and access control
+- Account registration and login with bcrypt password hashing.
+- Short-lived access JWTs and rotating opaque refresh sessions stored as hashes.
+- HttpOnly, SameSite refresh cookie; logout revocation and authenticated profile.
+- Organization-scoped memberships and role checks.
+- Owner/admin organization membership management, including suspension/reactivation and last-active-owner protection.
+- Project membership roles for project managers, contributors and viewers.
+- Server-derived tenant scope; client-supplied organization IDs are not trusted.
+
+### 4.2 Portfolio and project delivery
+- Organization-scoped project creation, listing, detail and updates.
+- WBS/work items, milestones, predecessor references and progress/status fields.
+- Project membership and task assignment validation.
+- Portfolio dashboard and project-level workspaces.
+
+### 4.3 Commercial and procurement controls
+- Cost codes and allocated project budgets.
+- Purchase-order, invoice and payment-claim records.
+- Workflow status transitions and commercial summary metrics.
+- Procurement and commitment visibility through the commercial register.
+
+**Boundary:** this is an operational commercial register, not a statutory accounting ledger. Financial decimal precision, immutable journals, tax, retention, partial-payment reconciliation, integrations and formal cost forecasting need additional engineering before financial reliance.
+
+### 4.4 Field operations
+- Contractor registry and contact/status records.
+- Daily reports, labour by trade, equipment usage, progress, weather, delays and site observations.
+- HTTPS photo-evidence references and optional location coordinates.
+
+**Boundary:** field photo URLs are references until uploaded through a secure file workflow. Offline-first sync, payroll, equipment telemetry and auditable report amendments are not implemented.
+
+### 4.5 Quality, safety and coordination
+- Inspection registers and checklist outcomes.
+- NCR/CAPA lifecycle with verification gates.
+- Hazard, near-miss and incident records.
+- RFI submission/response and submittal review workflows.
+- Project document metadata and approval history.
+
+### 4.6 Secure project documents
+- Metadata-first document registration and controlled version history.
+- Binary upload for PDF, PNG, JPEG and WEBP (maximum 25 MiB per file).
+- File extension, MIME type and signature checks; sanitized display names and opaque storage keys.
+- ClamAV scanning before a file is persisted as an accepted document version.
+- Private file storage outside the web root; authenticated, tenant/project-scoped downloads.
+- SHA-256 and byte-size metadata, verified again before download.
+- Append-only application-level upload/download audit events with actor, project, document, checksum and request ID.
+- Version upload, approval workflow and authenticated download UI.
+
+**Operational prerequisite:** uploads fail closed unless MongoDB transactions and ClamAV are available. Configure a durable private storage volume. The current adapter is a single-node/private POSIX filesystem implementation, not S3/GCS/Azure object storage. Multi-replica deployments need a shared secure filesystem or a distributed object-storage adapter.
+
+### 4.7 Explainable project intelligence
+- Deterministic risk signals across schedule, budget/commitments, quality, safety and coordination.
+- Evidence register with source records and concise recommendations.
+- Tenant-scoped project intelligence endpoints and workspace.
+
+**AI transparency:** the current engine is rule-based and explainable. It does not call an LLM, train a machine-learning model, calculate a critical path or provide calibrated risk probabilities. It is decision support, not a replacement for project controls judgement.
+
+### 4.8 Collaboration and audit reliability
+- Persisted recipient-scoped notifications and unread counts.
+- Tenant/project-scoped activity feed.
+- Project membership and assignment-aware event recipients.
+- Transactional domain mutation plus outbox insertion on supported MongoDB topologies.
+- Worker leases, fencing tokens, idempotent activity/notification creation, bounded retries and replay controls.
+- Document file access audit events.
+
+Application-level append-only semantics are not equivalent to cryptographic tamper evidence. Privileged direct database or storage-volume access is outside that guarantee.
+
+## 5. Security model and operational guarantees
+
+1. **Tenant isolation:** organization scope comes from the authenticated active membership and is applied server-side.
+2. **Role enforcement:** organization and project permissions are checked at API boundaries.
+3. **Session revocation:** user and membership status/role are rechecked on authenticated requests.
+4. **Input validation:** Zod schemas validate workflow inputs; binary upload additionally validates content type and signatures.
+5. **Document privacy:** files are not served from a public static directory; downloads require an active project membership.
+6. **Malware scanning:** ClamAV scan must return clean; scanner errors/timeouts do not silently pass.
+7. **Integrity:** SHA-256 and size are checked before file delivery.
+8. **Event consistency:** transaction-capable MongoDB is required for atomic domain/outbox writes.
+9. **Operational diagnostics:** liveness/readiness endpoints, request correlation IDs and structured API logging.
+10. **Least privilege:** run the container as non-root and restrict MongoDB, scanner and storage network/volume access.
+
+### MongoDB transaction modes
+
+- `OUTBOX_TRANSACTION_MODE=required`: fail API startup if MongoDB is not a replica set or sharded cluster. Recommended for production.
+- `auto`: detect topology; on standalone MongoDB use an explicitly reported non-atomic collaboration fallback.
+- `disabled`: explicitly disable outbox transactions.
+
+Secure document uploads require transaction mode `enabled` even if the rest of the API is configured for fallback.
+
+### Document storage and malware scanner
+
+- `DOCUMENT_STORAGE_DIR`: private persistent volume; Docker default is `/var/lib/buildsphere/documents`.
+- `CLAMD_HOST`: private ClamAV daemon host.
+- `CLAMD_PORT`: ClamAV TCP port (default `3310`).
+
+Never expose the ClamAV daemon publicly. Keep signatures updated, encrypt and back up the document volume, monitor capacity, and test restore procedures.
+
+## 6. Getting started
 
 ### Prerequisites
-
 - Node.js 22 or newer
 - npm 10 or newer
-- MongoDB 7 or newer (local or hosted)
+- MongoDB 7 or newer
+- Optional for secure binary uploads: ClamAV daemon and a writable private storage directory
 
-### Setup
+### Install and configure
 
-1. Clone the repository.
-2. Copy `.env.example` to the repository-root `.env` (the API loads this file when started from the workspace root).
-3. Set `MONGODB_URI`, `CLIENT_URL`, and a unique `JWT_ACCESS_SECRET` (at least 32 characters).
-4. Install workspace dependencies from the repository root:
+```bash
+git clone https://github.com/matiur25580/BuildSphere-Enterprise-Construction-Intelligence-Platform.git
+cd BuildSphere-Enterprise-Construction-Intelligence-Platform
+cp .env.example .env
+npm install
+```
 
-   ```bash
-   npm install
-   ```
+Set at least:
+- `MONGODB_URI`
+- `JWT_ACCESS_SECRET` (unique random secret, at least 32 characters)
+- `CLIENT_URL` (exact frontend origin)
+- `OUTBOX_TRANSACTION_MODE`
 
-5. Start the API and web application:
+For transaction-backed local development, run MongoDB as a replica set and initialise it before starting the API. A standalone local MongoDB is suitable only for explicitly non-atomic development workflows; secure document uploads will return `503` until transaction support is enabled.
 
-   ```bash
-   npm run dev
-   ```
+For document upload testing, also configure `CLAMD_HOST`, `CLAMD_PORT`, and a writable `DOCUMENT_STORAGE_DIR`. The API deliberately rejects uploads when malware scanning is not configured.
 
-6. Open the web app at http://localhost:5173.
-7. Check API health at http://localhost:5000/api/v1/health.
+### Start the application
 
-Never commit real credentials or `.env` files. The root `.gitignore` excludes them.
+```bash
+npm run dev
+```
 
-## Authentication endpoints
+- Web application: http://localhost:5173
+- API liveness: http://localhost:5000/api/v1/health
+- API readiness: http://localhost:5000/api/v1/ready
 
-| Method | Endpoint | Purpose |
+### Build and test
+
+```bash
+npm run build
+npm test --workspace=@buildsphere/api
+```
+
+The MongoDB integration suites require `MONGODB_URI` pointing to a transaction-capable replica set and a `JWT_ACCESS_SECRET` of at least 32 characters. The secure document suite starts a local fake ClamAV protocol endpoint to verify clean and malware-positive scanner outcomes; production scanner effectiveness depends on the real ClamAV service and current signatures.
+
+## 7. API route map
+
+All protected routes use bearer access tokens. See the linked API documents for request schemas, transitions, role gates and error semantics.
+
+| Area | Base path | Documentation |
 |---|---|---|
-| POST | `/api/v1/auth/register` | Create account and organization |
-| POST | `/api/v1/auth/login` | Sign in |
-| POST | `/api/v1/auth/refresh` | Rotate refresh session |
-| POST | `/api/v1/auth/logout` | Revoke refresh session |
-| GET | `/api/v1/auth/me` | Read authenticated user and organization |
+| Authentication | `/api/v1/auth` | [Authentication](docs/api/authentication.md) |
+| Organization members | `/api/v1/organization` | [Organization membership](docs/api/organization-membership.md) |
+| Projects and work items | `/api/v1/projects` | [Projects](docs/api/projects.md) |
+| Commercial records | `/api/v1/projects/:projectId/commercial` | [Commercial management](docs/api/commercial-management.md) |
+| Field operations | `/api/v1/projects/:projectId/field` | [Field operations](docs/api/field-operations.md) |
+| Quality, safety and documents | `/api/v1/projects/:projectId/delivery` | [Delivery workflows](docs/api/quality-safety-documents.md) |
+| Secure binary documents | `/api/v1/projects/:projectId/delivery/documents` | [Secure document management](docs/api/secure-document-management.md) |
+| Project intelligence | `/api/v1/projects/:projectId/intelligence` | [Project intelligence](docs/api/project-intelligence.md) |
+| Collaboration and activity | `/api/v1/projects/:projectId/collaboration` | [Collaboration](docs/api/collaboration.md) |
+| Project membership and outbox | `/api/v1/projects/:projectId` | [Membership and outbox](docs/api/project-membership-and-outbox.md) |
 
-See [Authentication API](docs/api/authentication.md) and [Authentication Security](docs/security/authentication.md).
+## 8. CI and verification
 
-## Engineering principles
+GitHub Actions runs on pushes and pull requests to `main`. The pipeline:
+1. Starts a MongoDB 7 single-node replica set.
+2. Installs workspace dependencies on Node.js 22.
+3. Builds API and web workspaces.
+4. Runs API unit tests and MongoDB-backed integration tests.
+5. Builds the production API Docker image.
 
-- Secure by default; validate input at API boundaries.
-- Enforce organization isolation on the server for every tenant-owned resource.
-- Keep business rules in domain services, not controllers.
-- Make important mutations auditable.
-- Test authorization boundaries as well as happy paths.
-- Prefer observable, documented workflows over placeholder feature breadth.
+Tests cover security configuration, intelligence rules, collaboration scoping, notification ownership, HTTP/JWT role and tenant boundaries, transactional outbox rollback/commit, worker lease recovery/fencing, organization governance, and secure document upload/download scanning and authorization.
 
-## Roadmap
+CI success demonstrates that the checked-in build and automated test suite passed in that CI environment. It does not certify a production deployment, a real ClamAV signature database, cloud storage durability, compliance, penetration testing or live operational readiness.
 
-1. Foundation and developer experience.
-2. Authentication, organizations, memberships, and initial RBAC.
-3. Project portfolio and schedule management.
-4. Commercial management and procurement.
-5. Contractor and field operations.
-6. Quality, safety, documents, and approvals.
-7. AI project intelligence and evidence-backed insights.
-8. Security hardening, automated testing, and deployment.
-9. Tenant-scoped collaboration, notifications and activity feed.
-10. Project membership, task assignment and reliable collaboration.
-11. Workflow-wide collaboration event coverage and worker fencing.
-12. Transactional outbox, HTTP authorization and audit reliability.
-13. Organization member administration and governance.
+## 9. Roadmap — next enterprise increments
 
-## Project portfolio milestone scope
+1. **Distributed document storage:** S3-compatible adapter, signed access, resumable multipart uploads, retention and orphan reconciliation.
+2. **BIM and drawing workflows:** IFC/DWG/BCF integration, drawing comparison, model issue coordination and markup.
+3. **Enterprise identity:** MFA, SSO/OIDC/SAML, SCIM provisioning, delegated administration and organization switching.
+4. **Project controls depth:** Gantt, critical path, schedule baselines, earned value, change control and resource loading.
+5. **Commercial maturity:** decimal-safe money, tax/retention, payment reconciliation, change orders and accounting integrations.
+6. **Field-first delivery:** offline sync, mobile capture, geotagged evidence and permit-to-work workflows.
+7. **Operational intelligence:** calibrated forecasting, scenario modelling and human-reviewed AI-assisted reporting.
+8. **Sustainability:** verified material EPD data, embodied-carbon calculations, waste and energy reporting.
+9. **Observability and governance:** metrics/tracing export, alerting, immutable external audit archive, retention/legal hold and disaster-recovery exercises.
+10. **Interoperability:** open APIs, webhooks, ERP/BIM integrations and data export.
 
-Implemented: organization-scoped project creation/list/detail/update, project status and budget metadata, WBS summary/task/milestone records, parent summary links, predecessor references, work-item progress/status, project date validation, and a responsive portfolio dashboard with project creation. All project reads and writes derive organization scope from the authenticated session. See [Project Portfolio API](docs/api/projects.md).
+## 10. Engineering principles
 
-Not yet implemented: full Gantt rendering, critical-path calculation, dependency-cycle detection, resource assignment entities, and schedule baselining.
+- Enforce tenant isolation and authorization on the server, not only in the UI.
+- Make workflow state transitions explicit and validate every boundary.
+- Preserve evidence provenance; distinguish recorded facts from inferred risk signals.
+- Fail closed when malware scanning or required transaction guarantees are unavailable.
+- Prefer durable, observable workflows over placeholder feature breadth.
+- Document operational prerequisites and limitations honestly.
+- Keep synthetic screenshots and demo data clearly labelled as illustrative.
 
-## Commercial management milestone scope
+## 11. Contributing
 
-Implemented: project cost codes and allocated budgets; purchase-order, invoice, and payment-claim records; cost-code linkage; record submission, approval, rejection, and payment status transitions; project commercial summaries; and a responsive commercial workspace.
+1. Create a focused branch for substantial changes.
+2. Follow the existing TypeScript, Mongoose, Express and React conventions.
+3. Add tenant-boundary and role tests for new API routes.
+4. Add MongoDB integration tests for transaction-sensitive workflows.
+5. Update the relevant API docs and this README when behaviour or operational requirements change.
+6. Run builds and tests before opening a pull request.
 
-This is an operational register, not a statutory accounting ledger. Decimal precision, immutable journals, tax, retention, partial-payment reconciliation, and audit events remain required before production financial use. See [Commercial Management API](docs/api/commercial-management.md).
+## 12. License and product maturity
 
-## Field operations milestone scope
+No open-source license is currently declared in this repository. Do not assume permission for redistribution or commercial reuse until a license is added.
 
-Implemented: project-scoped contractor registry, contractor contact/status updates, day/night daily site reports, workforce-by-trade and contractor logging, equipment quantity and hours, weather, progress, safety observations, delays/issues, HTTPS photo evidence references, optional site/photo coordinates, and field summary metrics. See [Field Operations API](docs/api/field-operations.md).
-
-Not yet implemented: direct photo uploads/object storage, offline-first sync, payroll, equipment telemetry, formal safety incident workflows, and auditable report amendments.
-
-## Quality, safety, documents and approvals milestone scope
-
-Implemented: project-scoped quality inspections with checklist outcomes and review states; non-conformance reports with corrective/preventive action ownership, due dates and verification gates; hazard, near-miss and incident registers; RFI submission and response; submittal review outcomes; controlled project document records with numbered versions and approval history. All operations derive tenant scope from authenticated membership and validate project ownership. See [Quality, Safety, Documents and Approvals API](docs/api/quality-safety-documents.md).
-
-Not yet implemented: binary uploads/object storage, malware scanning, cryptographically tamper-evident audit ledger, notification/escalation, electronic signatures, offline workflows and regulatory incident submissions. Treat file URLs as references only; they are not proof of secure file access.
-
-## AI project intelligence milestone scope
-
-Implemented: explainable project risk signals across schedule, purchase-order commitments, overdue invoices, quality/NCR/CAPA, safety events, RFIs and submittals; project-currency checks; source-linked evidence register; and a tenant-scoped evidence query endpoint. The UI presents risk priorities, recommendations, evidence confidence labels and traceable records. See [Project Intelligence API](docs/api/project-intelligence.md).
-
-Important: the current intelligence engine uses deterministic heuristics and keyword retrieval. It does not call an LLM, train a predictive model, calculate a critical path, or provide calibrated risk probabilities. It is a decision-support aid based only on recorded data, not a substitute for project controls review. Snapshot reads are bounded and generated on demand.
-
-## Authentication milestone scope
-
-Implemented: registration, login, password hashing, JWT access tokens, rotating refresh sessions, logout, authenticated profile, organization creation, owner membership, role middleware, and authentication rate limiting.
-
-Not yet implemented: email verification, password reset delivery, MFA, organization switching, and email-based invitations. Organization owner/admin member administration is available in Phase 13; it manages existing accounts only. Do not treat this milestone as production-ready security without the testing and controls described in the security documentation.
-
-See [Architecture Overview](docs/architecture/overview.md).
-
-
-## Security hardening and deployment milestone
-
-Implemented: exact CORS origin allowlisting (comma-separated `CLIENT_URL`), opt-in trusted-proxy configuration, UUID request correlation via `X-Request-Id`, a global API rate limit, 1 MB request-body limits, MongoDB readiness endpoint, security configuration unit tests, and a multi-stage non-root API Docker image. See [Production Readiness](docs/security/production-readiness.md).
-
-The readiness endpoint is `GET /api/v1/ready`; liveness remains `GET /api/v1/health`. This repository milestone does not provision hosting or prove production readiness. MongoDB-backed cross-tenant integration tests, external security scanning, deployment secrets, telemetry export, and immutable audit storage remain outstanding.
-
-
-## Collaboration, notifications and activity milestone
-
-Implemented: append-only project activity and persisted recipient-scoped notifications for task assignment, commercial record creation/status, quality inspection and NCR/CAPA workflows, safety event creation/status, RFI/submittal lifecycle, and document registration/version/approval changes. Activity reads are tenant/project scoped; non-manager readers require active project membership. Notifications are restricted to the authenticated recipient and active tenant. The dashboard includes a team inbox, project roster and assignment controls.
-
-API: `GET /api/v1/notifications`, `GET /api/v1/notifications/unread-count`, `PATCH /api/v1/notifications/read`, and `GET /api/v1/projects/:projectId/collaboration/activity`. See [Collaboration API](docs/api/collaboration.md) and [Project membership and outbox API](docs/api/project-membership-and-outbox.md).
-
-Delivery guarantees depend on MongoDB topology. With replica-set or sharded-cluster transaction support, event-producing domain writes and outbox inserts commit atomically. Standalone MongoDB runs in an explicit non-atomic fallback unless `OUTBOX_TRANSACTION_MODE=required` is set; readiness reports the active mode. See Phase 12 and [Collaboration API](docs/api/collaboration.md).
-
-## Phase 10 — Project membership, task assignment and reliable collaboration
-
-BuildSphere now supports tenant-scoped project member management, with project manager/contributor/viewer roles and active/inactive membership. Project creators are bootstrapped as project managers; membership changes can only target users with an active membership in the same organization. Work items can carry an explicit `assignedUserId`, validated against active membership in that project, while legacy free-text assignees remain compatible.
-
-Collaboration events are persisted in an outbox and delivered by an API worker with atomic leases, idempotent activity/notification upserts, bounded retries and exponential backoff. Notifications are now scoped to active project members; assignment notifications target the assignee. The activity feed requires active project membership for non-manager roles. The collaboration workspace includes project roster management.
-
-The Phase 12 transactional path now couples event-producing domain writes and outbox inserts on supported MongoDB topologies. Standalone MongoDB remains a documented non-atomic fallback. Failed-event replay, HTTP/JWT authorization tests and transaction coverage are described below; real-time Socket.IO remains intentionally deferred. MongoDB-backed query-scope/notification-ownership integration tests run in CI. Socket.IO remains intentionally deferred until authenticated handshake, room authorization and revocation behavior can be tested end-to-end. Existing project module APIs remain organization-scoped for backward compatibility; project-level enforcement is currently applied to membership validation, assignment, notifications and activity feed access. See [Project membership and outbox API](docs/api/project-membership-and-outbox.md).
-
-
-## Phase 11 — Workflow-wide collaboration event coverage and worker fencing
-
-Collaboration event coverage now includes safety-event status transitions and document version additions in addition to task assignments, commercial changes, inspections, NCR/CAPA, safety reports, RFIs, submittals, document registration and approval decisions. Notification summaries remain concise and do not include document bodies, reviewer comments, incident narratives or uploaded content.
-
-The outbox worker now uses a unique lease fencing token on every claim. Delivery and retry state changes must match the current token, preventing a delayed worker whose lease was taken over from marking a newer worker's event delivered or resetting its retry state. MongoDB integration tests cover notification ownership, tenant/project filters and stale-worker fencing. Unit tests cover allowlisted events and the fencing filter.
-
-Phase 12 supersedes the prior enqueue limitation for event-producing workflows on transaction-capable MongoDB. The API detects transaction support at startup. `OUTBOX_TRANSACTION_MODE=required` fails startup on standalone MongoDB; `auto` (default) explicitly logs and reports the non-atomic fallback, and `disabled` opts out. For production, configure a replica set or sharded cluster and set `required`. See [Project membership and outbox API](docs/api/project-membership-and-outbox.md).
-
-
-## Phase 12 — Transactional outbox, HTTP authorization and audit reliability
-
-Implemented: event-producing commercial, task-assignment, quality, safety, RFI, submittal and document mutations now use a shared mutation-plus-outbox helper. When MongoDB reports replica-set or mongos topology, the domain writes and outbox event are committed in one transaction with snapshot read concern and majority write concern. The helper uses Mongoose's connection transaction wrapper to reset document state safely across transaction retries.
-
-Runtime topology is checked after MongoDB connects. Configure `OUTBOX_TRANSACTION_MODE=required` for production; startup fails if transactions are unavailable. `auto` (default) explicitly warns and reports `non_atomic_fallback` on standalone MongoDB, where a domain write may persist even if the subsequent outbox insert fails. `disabled` explicitly opts out. The readiness endpoint reports the active outbox transaction mode. CI uses MongoDB 7 as a single-node replica set and sets transaction mode to required.
-
-Added owner/admin/project-manager failed-event inspection and replay endpoints, with organization/project filters and replay actor/time/count metadata. Activity writes are append-only through application-level Mongoose APIs; idempotent creation is keyed by source event. This is not a tamper-evident ledger against direct database administrators.
-
-Verification covers transaction rollback/commit, expired worker lease recovery, idempotent delivery retry, notification ownership, HTTP/JWT cross-tenant denial, active/inactive project membership, role restrictions, member addition, task assignment, safety and commercial event creation, and failed-event replay authorization. CI does not yet constitute a full browser end-to-end suite. Socket.IO, cryptographic audit chaining/external immutable storage, broader workflow HTTP coverage, and an operator-facing UI for failed events remain follow-up work.
-
-
-## Phase 13 — Organization member administration and governance
-
-Owners and administrators now have an Organization members workspace. It lists organization-scoped memberships and account status, adds/reactivates existing active BuildSphere accounts by email, and updates organization roles or suspends/reactivates access. Owners alone can grant or revoke owner/admin privileges; administrators can manage non-elevated roles only. The backend enforces tenant scope from the authenticated token and prevents an organization from losing its last active owner.
-
-Membership mutations use MongoDB transactions and an organization-level revision write to serialize concurrent governance changes before checking owner invariants. These endpoints return `503` when the connected MongoDB topology does not support transactions; use a replica set or sharded cluster and set `OUTBOX_TRANSACTION_MODE=required` in production. Authentication rechecks membership status and role on each request, so suspended memberships and stale-role access tokens are rejected immediately.
-
-API: `GET /api/v1/organization/members`, `POST /api/v1/organization/members`, and `PATCH /api/v1/organization/members/:memberId`. See [Organization Membership API](docs/api/organization-membership.md).
-
-Limitations: members must already have active BuildSphere accounts; no invitation email, account recovery, MFA, organization switching, SCIM/bulk provisioning or dedicated organization audit stream is included. Project membership remains a separate permission layer.
+BuildSphere is an evolving engineering project intended to demonstrate a serious construction-domain SaaS architecture. Evaluate it by its implemented code, tests and documented boundaries—not by the illustrative dashboard concepts alone.
