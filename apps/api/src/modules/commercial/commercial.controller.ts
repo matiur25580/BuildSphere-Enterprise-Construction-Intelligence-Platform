@@ -19,8 +19,20 @@ const projectFor = async (projectId: string, organizationId: string) => {
 };
 
 const decimalUnits = (value: unknown): bigint => {
-  const [whole = "0", fraction = ""] = String(value ?? "0").split(".");
-  return BigInt(whole) * 10_000n + BigInt(fraction.padEnd(4, "0").slice(0, 4));
+  const match = String(value ?? "0").match(/^([+-]?)(\\d+)(?:\\.(\\d*))?(?:[eE]([+-]?\\d+))?$/);
+  if (!match) throw new Error("Invalid Decimal128 value in commercial summary");
+  const [, sign, whole, fraction = "", exponentText = "0"] = match;
+  const digits = BigInt(`${whole}${fraction}`);
+  const scale = fraction.length - Number(exponentText);
+  let units: bigint;
+  if (scale <= 4) {
+    units = digits * 10n ** BigInt(4 - scale);
+  } else {
+    const divisor = 10n ** BigInt(scale - 4);
+    if (digits % divisor !== 0n) throw new Error("Financial value exceeds supported decimal precision");
+    units = digits / divisor;
+  }
+  return sign === "-" ? -units : units;
 };
 const decimalString = (units: bigint): string => {
   const sign = units < 0n ? "-" : "";
