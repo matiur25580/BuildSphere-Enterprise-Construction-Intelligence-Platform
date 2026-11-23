@@ -8,6 +8,7 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
+  ".ifc": "application/ifc",
 };
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
@@ -21,13 +22,14 @@ export const normalizeDocumentFile = (body: unknown, rawName: string | undefined
   const extension = extname(fileName).toLowerCase();
   const expectedType = MIME_BY_EXTENSION[extension];
   if (!fileName || !expectedType || contentType?.split(";")[0].trim().toLowerCase() !== expectedType) {
-    throw new HttpError(415, "Only matching PDF, PNG, JPEG and WEBP document files are supported");
+    throw new HttpError(415, "Only matching PDF, PNG, JPEG, WEBP and IFC document files are supported");
   }
   const validSignature =
     (expectedType === "application/pdf" && body.subarray(0, 5).toString("ascii") === "%PDF-") ||
     (expectedType === "image/png" && body.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ||
     (expectedType === "image/jpeg" && body[0] === 0xff && body[1] === 0xd8 && body[2] === 0xff) ||
-    (expectedType === "image/webp" && body.subarray(0, 4).toString("ascii") === "RIFF" && body.subarray(8, 12).toString("ascii") === "WEBP");
+    (expectedType === "image/webp" && body.subarray(0, 4).toString("ascii") === "RIFF" && body.subarray(8, 12).toString("ascii") === "WEBP") ||
+    (expectedType === "application/ifc" && /^\\s*ISO-10303-21\\s*;/i.test(body.subarray(0, 256).toString("utf8")));
   if (!validSignature) throw new HttpError(415, "File content does not match its declared document type");
   return { buffer: body, fileName, contentType: expectedType };
 };
