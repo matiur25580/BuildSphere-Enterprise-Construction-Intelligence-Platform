@@ -87,14 +87,21 @@ test("inventory removes only old unreferenced objects and preserves assets and r
   const staleOrphanKey = randomUUID();
   const recentOrphanKey = randomUUID();
   const referencedKey = randomUUID();
+  const activeSessionKey = randomUUID();
   const bytes = Buffer.from("inventory fixture");
   await Promise.all([
     putDocumentObject(staleOrphanKey, bytes, "application/octet-stream"),
     putDocumentObject(recentOrphanKey, bytes, "application/octet-stream"),
     putDocumentObject(referencedKey, bytes, "application/octet-stream"),
+    putDocumentObject(activeSessionKey, bytes, "application/octet-stream"),
   ]);
   const staleDate = new Date(Date.now() - 48 * 60 * 60 * 1000);
-  await Promise.all([utimes(join(storageDirectory, staleOrphanKey), staleDate, staleDate), utimes(join(storageDirectory, referencedKey), staleDate, staleDate)]);
+  await Promise.all([utimes(join(storageDirectory, staleOrphanKey), staleDate, staleDate), utimes(join(storageDirectory, referencedKey), staleDate, staleDate), utimes(join(storageDirectory, activeSessionKey), staleDate, staleDate)]);
+  await DocumentUploadSession.create({
+    organizationId, projectId, documentId, createdBy: uploadedBy, fileName: "active.pdf", contentType: "application/pdf",
+    totalBytes: bytes.length, expectedParts: 1, parts: [{ partNumber: 1, storageKey: activeSessionKey, byteSize: bytes.length, sha256: "d".repeat(64) }],
+    status: "uploading", expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+  });
   await DocumentAsset.create({
     organizationId, projectId, documentId, version: 1, storageKey: referencedKey, fileName: "retained.pdf",
     contentType: "application/pdf", byteSize: bytes.length, sha256: "c".repeat(64), scanStatus: "clean", uploadedBy,
@@ -103,9 +110,10 @@ test("inventory removes only old unreferenced objects and preserves assets and r
   const result = await reconcileOrphanDocumentObjects(new Date());
   assert.equal(result.examined >= 3, true);
   assert.equal(result.deleted, 1);
-  assert.equal(result.retained, 1);
+  assert.equal(result.retained, 2);
   assert.equal(result.recent >= 1, true);
   await assert.rejects(readFile(join(storageDirectory, staleOrphanKey)));
   assert.deepEqual(await readFile(join(storageDirectory, referencedKey)), bytes);
+  assert.deepEqual(await readFile(join(storageDirectory, activeSessionKey)), bytes);
   assert.deepEqual(await readFile(join(storageDirectory, recentOrphanKey)), bytes);
 });
