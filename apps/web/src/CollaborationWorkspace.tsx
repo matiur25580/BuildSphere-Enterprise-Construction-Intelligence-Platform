@@ -6,6 +6,7 @@ type Notification = { _id: string; summary: string; eventType: string; createdAt
 type Activity = { _id: string; summary: string; eventType: string; createdAt: string; actorId?: { name?: string } };
 type ProjectMember = { _id: string; role: string; status: string; userId: { _id: string; name: string; email: string } };
 type EligibleMember = { _id: string; name: string; email: string };
+type WorkItem = { _id: string; code: string; title: string; assignedUserId?: string | null };
 
 async function request<T>(path: string, token: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
@@ -21,6 +22,7 @@ export function CollaborationWorkspace({ projects, token, canManageMembers, onCl
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [eligible, setEligible] = useState<EligibleMember[]>([]);
   const [newMemberId, setNewMemberId] = useState("");
   const [memberRole, setMemberRole] = useState("contributor");
@@ -48,6 +50,12 @@ export function CollaborationWorkspace({ projects, token, canManageMembers, onCl
     setEligible(candidates);
   }, [selectedProject, token, canManageMembers]);
 
+  const loadWorkItems = useCallback(async () => {
+    if (!selectedProject) { setWorkItems([]); return; }
+    const result = await request<WorkItem[]>(`/projects/${selectedProject}/work-items`, token);
+    setWorkItems(result);
+  }, [selectedProject, token]);
+
   const loadActivity = useCallback(async () => {
     if (!selectedProject) { setActivity([]); return; }
     const result = await request<{ items: Activity[] }>(`/projects/${selectedProject}/collaboration/activity?limit=30&page=1`, token);
@@ -56,12 +64,19 @@ export function CollaborationWorkspace({ projects, token, canManageMembers, onCl
 
   const refresh = useCallback(async () => {
     setLoading(true); setError("");
-    try { await Promise.all([loadInbox(), loadActivity(), loadMembers()]); }
+    try { await Promise.all([loadInbox(), loadActivity(), loadMembers(), loadWorkItems()]); }
     catch (e) { setError(e instanceof Error ? e.message : "Unable to load collaboration data"); }
     finally { setLoading(false); }
-  }, [loadInbox, loadActivity, loadMembers]);
+  }, [loadInbox, loadActivity, loadMembers, loadWorkItems]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  const assignWorkItem = async (itemId: string, assignedUserId: string) => {
+    try {
+      await request(`/projects/${selectedProject}/work-items/${itemId}`, token, { method: "PATCH", body: JSON.stringify({ assignedUserId: assignedUserId || null }) });
+      await Promise.all([loadWorkItems(), loadInbox()]);
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to update assignment"); }
+  };
 
   const addMember = async () => {
     if (!selectedProject || !newMemberId) return;
@@ -115,6 +130,15 @@ export function CollaborationWorkspace({ projects, token, canManageMembers, onCl
           <button className="primary-button" disabled={!newMemberId} onClick={() => void addMember()}>Add to project</button>
         </div>}
       </section>
+      {canManageMembers && <section className="collab-list collab-members">
+        <div className="panel-heading"><h3>Work item assignments</h3><span className="count-label">{workItems.length} items</span></div>
+        {workItems.length === 0 ? <p className="muted">No work items have been created for this project yet.</p> : workItems.map(item => <article className="collab-item" key={item._id}>
+          <div><strong>{item.code} · {item.title}</strong><small>{item.assignedUserId ? "Assigned" : "Unassigned"}</small></div>
+          <select aria-label={`Assign ${item.code}`} value={item.assignedUserId ?? ""} onChange={e => void assignWorkItem(item._id, e.target.value)}>
+            <option value="">Unassigned</option>{members.filter(m => m.status === "active").map(member => <option value={member.userId._id} key={member.userId._id}>{member.userId.name}</option>)}
+          </select>
+        </article>)}
+      </section>}
       <p className="fine-print">Assignment and activity notifications are delivered through the persisted outbox to active project members. Real-time push is not enabled; refresh to retrieve updates.</p>
     </div>
   </section>;
