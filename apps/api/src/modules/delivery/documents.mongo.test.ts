@@ -119,7 +119,8 @@ test("private document upload and download enforce scan, tenant and project-memb
   assert.equal((await fetch(approvalUrl, { method: "PATCH", headers: { authorization: `Bearer ${ownerToken}`, "content-type": "application/json" }, body: JSON.stringify({ action: "submitted" }) })).status, 409);
   const upload = (bearer: string, body = pdf, contentType = "application/pdf", fileName = "foundation-plan.pdf") =>
     fetch(baseUrl + path, { method: "POST", headers: { authorization: `Bearer ${bearer}`, "content-type": contentType, "x-file-name": encodeURIComponent(fileName) }, body });
-  assert.equal((await upload(ownerToken)).status, 201);
+  const firstUpload = await upload(ownerToken);
+  assert.equal(firstUpload.status, 201, await firstUpload.text());
   assert.equal((await upload(viewerToken)).status, 403);
   assert.equal((await upload(ownerToken, Buffer.from("not a PDF"))).status, 415);
   assert.equal((await upload(ownerToken, Buffer.from("%PDF-1.7\\nEICAR test signature\\n%%EOF"))).status, 422);
