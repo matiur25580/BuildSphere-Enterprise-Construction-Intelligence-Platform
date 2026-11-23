@@ -39,6 +39,7 @@ export const createWorkItemSchema = z.object({
   endDate: dateValue,
   progress: z.coerce.number().min(0).max(100).default(0),
   assignedTo: z.string().max(120).optional(),
+  assignedUserId: z.string().regex(/^[a-f\\d]{24}$/i).nullable().optional(),
   predecessorIds: z.array(z.string()).default([]),
 }).refine((value) => value.endDate >= value.startDate, {
   message: "End date must be on or after the start date",
