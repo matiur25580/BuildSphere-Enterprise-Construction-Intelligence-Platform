@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { collaborationRetryDelay, notificationOwnerScope, projectActivityScope, projectMemberScope } from "./collaboration.service.js";
+import { collaborationRetryDelay, notificationOwnerScope, outboxLeaseFilter, projectActivityScope, projectMemberScope } from "./collaboration.service.js";
 import { collaborationEventTypes } from "./collaboration.models.js";
 
 test("notification scope always includes both authenticated tenant and recipient", () => {
@@ -33,4 +33,18 @@ test("outbox retry delay grows exponentially and is capped at one hour", () => {
   assert.equal(collaborationRetryDelay(2), 120_000);
   assert.equal(collaborationRetryDelay(8), 3_600_000);
   assert.equal(collaborationRetryDelay(20), 3_600_000);
+});
+
+test("outbox completion is fenced to the worker's current lease token", () => {
+  const id = "64b000000000000000000009";
+  const lease = outboxLeaseFilter(id, "worker-lease-a");
+  assert.equal(String(lease._id), id);
+  assert.equal(lease.status, "processing");
+  assert.equal(lease.leaseToken, "worker-lease-a");
+  assert.notEqual(lease.leaseToken, "worker-lease-b");
+});
+
+test("safety and document version lifecycle events are explicitly allowlisted", () => {
+  assert.ok(collaborationEventTypes.includes("safety.event_status_changed"));
+  assert.ok(collaborationEventTypes.includes("documents.version_added"));
 });
