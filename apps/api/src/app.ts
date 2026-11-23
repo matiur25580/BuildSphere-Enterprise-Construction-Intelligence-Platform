@@ -4,7 +4,6 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import mongoose from "mongoose";
-import { mkdir, access, constants as fsConstants } from "node:fs/promises";
 import { rateLimit } from "express-rate-limit";
 import authRoutes from "./modules/auth/auth.routes.js";
 import organizationRoutes from "./modules/organizations/membership.routes.js";
@@ -19,7 +18,7 @@ import notificationRoutes from "./modules/collaboration/notification.routes.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { createRequestId, isAllowedOrigin, parseAllowedOrigins, parseTrustProxy } from "./config/security.js";
 import { getCollaborationTransactionStatus } from "./modules/collaboration/collaboration.service.js";
-import { checkClamAvHealth, documentStorageDirectory, documentStorageHealthCheck } from "./modules/delivery/document-storage.js";
+import { checkClamAvHealth, documentStorageHealthCheck } from "./modules/delivery/document-storage.js";
 
 const app = express();
 const allowedOrigins = parseAllowedOrigins(process.env.CLIENT_URL);
@@ -66,15 +65,6 @@ app.get("/api/v1/health", (_request, response) => {
 app.get("/api/v1/ready", async (_request, response) => {
   const mongodb = mongoose.connection.readyState === 1;
   const collaborationTransactions = getCollaborationTransactionStatus();
-  let documentStorage = false;
-  try {
-    const directory = documentStorageDirectory();
-    await mkdir(directory, { recursive: true, mode: 0o700 });
-    await access(directory, fsConstants.R_OK | fsConstants.W_OK);
-    documentStorage = true;
-  } catch {
-    documentStorage = false;
-  }
   const clamav = await checkClamAvHealth();
   let documentStorage = false;
   try {
