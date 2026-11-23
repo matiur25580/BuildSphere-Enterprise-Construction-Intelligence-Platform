@@ -82,7 +82,7 @@ export const reconcileOrphanDocumentObjects = async (now = new Date()): Promise<
   if (!lease) return empty;
 
   try {
-    const page = await listDocumentObjects(lease.cursor, INVENTORY_PAGE_SIZE);
+    const page = await listDocumentObjects(lease.cursor ?? undefined, INVENTORY_PAGE_SIZE);
     const olderThan = new Date(now.getTime() - ORPHAN_GRACE_MS);
     const result: StorageInventoryResult = { examined: page.objects.length, deleted: 0, retained: 0, recent: 0 };
     for (const object of page.objects) {
