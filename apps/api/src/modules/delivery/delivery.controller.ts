@@ -13,10 +13,11 @@ import { Submittal } from "./submittal.model.js";
 import { ProjectDocument } from "./project-document.model.js";
 import { DocumentAsset } from "./document-asset.model.js";
 import { DocumentAuditEvent } from "./document-audit.model.js";
+import { DocumentUploadSession } from "./document-upload-session.model.js";
 import { deleteDocumentObject, normalizeDocumentFile, putDocumentObject, readDocumentObject, scanDocumentWithClamAv } from "./document-storage.js";
 import { getCollaborationTransactionStatus } from "../collaboration/collaboration.service.js";
 import { runProjectMutationWithEvent } from "../collaboration/collaboration.service.js";
-import { createInspectionSchema, inspectionStatusSchema, createNcrSchema, ncrStatusSchema, createCapaSchema, capaStatusSchema, createSafetyEventSchema, safetyStatusSchema, createRfiSchema, respondRfiSchema, createSubmittalSchema, reviewSubmittalSchema, createDocumentSchema, addDocumentVersionSchema, documentApprovalSchema } from "./delivery.schemas.js";
+import { createInspectionSchema, inspectionStatusSchema, createNcrSchema, ncrStatusSchema, createCapaSchema, capaStatusSchema, createSafetyEventSchema, safetyStatusSchema, createRfiSchema, respondRfiSchema, createSubmittalSchema, reviewSubmittalSchema, createDocumentSchema, addDocumentVersionSchema, documentApprovalSchema, createDocumentUploadSchema, documentUploadPartSchema } from "./delivery.schemas.js";
 
 const authContext = (request: Request) => { if (!request.auth) throw new HttpError(401, "Authentication required"); return request.auth; };
 const projectContext = async (request: Request) => {
@@ -27,6 +28,11 @@ const projectContext = async (request: Request) => {
   return { auth, projectId, scope: { organizationId: auth.organizationId, projectId } };
 };
 const transition = (current: string, next: string, allowed: Record<string, string[]>, label: string) => { if (!allowed[current]?.includes(next)) throw new HttpError(409, `Cannot move ${label} from ${current} to ${next}`); };
+const DOCUMENT_UPLOAD_PART_BYTES = 5 * 1024 * 1024;
+const requireDocumentUploadManager = async (scope: { organizationId: string; projectId: string }, userId: string, role: string) => {
+  const member = await ProjectMembership.findOne({ ...scope, userId, status: "active" }).select("role").lean();
+  if (!member || (member.role !== "project_manager" && !["owner", "admin"].includes(role))) throw new HttpError(403, "Project manager access is required to upload documents");
+};
 
 export const getDeliverySummary = asyncHandler(async (request: Request, response: Response) => {
   const { scope } = await projectContext(request);
@@ -119,6 +125,155 @@ export const uploadDocumentFile = asyncHandler(async (request: Request, response
     await deleteDocumentObject(storageKey).catch(() => undefined);
     throw error;
   }
+});
+
+
+export const createDocumentUpload = asyncHandler(async (request: Request, response: Response) => {
+  const { auth, scope } = await projectContext(request);
+  if (getCollaborationTransactionStatus() !== "enabled") throw new HttpError(503, "Resumable uploads require MongoDB replica-set or sharded-cluster transactions");
+  await requireDocumentUploadManager(scope, auth.userId, auth.role);
+  const input = createDocumentUploadSchema.parse(request.body);
+  const documentId = String(request.params.documentId);
+  if (!mongoose.isValidObjectId(documentId)) throw new HttpError(404, "Document not found");
+  const document = await ProjectDocument.findOne({ _id: documentId, ...scope }).select("_id approvalStatus").lean();
+  if (!document) throw new HttpError(404, "Document not found");
+  if (document.approvalStatus === "submitted" || document.approvalStatus === "approved") throw new HttpError(409, "A new version cannot be added while approval is pending or approved");
+  const expectedParts = Math.ceil(input.totalBytes / DOCUMENT_UPLOAD_PART_BYTES);
+  const session = await DocumentUploadSession.create({
+    ...scope, documentId, createdBy: auth.userId, fileName: input.fileName,
+    contentType: input.contentType, totalBytes: input.totalBytes,
+    expectedSha256: input.sha256, expectedParts, parts: [],
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  });
+  response.status(201).json({ success: true, data: { uploadId: String(session._id), partSize: DOCUMENT_UPLOAD_PART_BYTES, expectedParts, expiresAt: session.expiresAt, receivedParts: [] } });
+});
+
+
+export const getDocumentUpload = asyncHandler(async (request: Request, response: Response) => {
+  const { auth, scope } = await projectContext(request);
+  const documentId = String(request.params.documentId);
+  if (!mongoose.isValidObjectId(documentId)) throw new HttpError(404, "Document not found");
+  await requireDocumentUploadManager(scope, auth.userId, auth.role);
+  const uploadId = String(request.params.uploadId);
+  if (!mongoose.isValidObjectId(uploadId)) throw new HttpError(404, "Upload session not found");
+  const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, documentId, createdBy: auth.userId, status: { $in: ["uploading", "completing"] } }).lean();
+  if (!session) throw new HttpError(404, "Upload session not found");
+  if (session.expiresAt.getTime() <= Date.now()) throw new HttpError(410, "Upload session has expired");
+  response.json({ success: true, data: { uploadId: String(session._id), status: session.status, fileName: session.fileName, totalBytes: session.totalBytes, partSize: DOCUMENT_UPLOAD_PART_BYTES, expectedParts: session.expectedParts, receivedParts: session.parts.map((part) => ({ partNumber: part.partNumber, byteSize: part.byteSize, sha256: part.sha256 })), expiresAt: session.expiresAt } });
+});
+
+export const uploadDocumentPart = asyncHandler(async (request: Request, response: Response) => {
+  const { auth, scope } = await projectContext(request);
+  const documentId = String(request.params.documentId);
+  if (!mongoose.isValidObjectId(documentId)) throw new HttpError(404, "Document not found");
+  await requireDocumentUploadManager(scope, auth.userId, auth.role);
+  const uploadId = String(request.params.uploadId);
+  if (!mongoose.isValidObjectId(uploadId)) throw new HttpError(404, "Upload session not found");
+  const input = documentUploadPartSchema.parse({ partNumber: request.params.partNumber, sha256: request.header("x-part-sha256") });
+  if (!Buffer.isBuffer(request.body) || request.body.length === 0 || request.body.length > DOCUMENT_UPLOAD_PART_BYTES) throw new HttpError(400, "A non-empty upload part of at most 5 MiB is required");
+  const actualSha256 = createHash("sha256").update(request.body).digest("hex");
+  if (actualSha256 !== input.sha256) throw new HttpError(422, "Upload part checksum verification failed");
+  const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, documentId, createdBy: auth.userId, status: "uploading" });
+  if (!session) throw new HttpError(404, "Upload session not found");
+  if (session.expiresAt.getTime() <= Date.now()) throw new HttpError(410, "Upload session has expired");
+  if (input.partNumber > session.expectedParts) throw new HttpError(400, "Upload part number exceeds the expected part count");
+  const expectedSize = input.partNumber === session.expectedParts ? session.totalBytes - (session.expectedParts - 1) * DOCUMENT_UPLOAD_PART_BYTES : DOCUMENT_UPLOAD_PART_BYTES;
+  if (request.body.length !== expectedSize) throw new HttpError(400, "Upload part size does not match the expected chunk size");
+  const existing = session.parts.find((part) => part.partNumber === input.partNumber);
+  if (existing) {
+    if (existing.sha256 === actualSha256 && existing.byteSize === request.body.length) { response.json({ success: true, data: { partNumber: input.partNumber, received: true, idempotent: true } }); return; }
+    throw new HttpError(409, "This upload part was already received with different content");
+  }
+  const storageKey = `part_${randomUUID()}`;
+  await putDocumentObject(storageKey, request.body, "application/octet-stream");
+  const updated = await DocumentUploadSession.findOneAndUpdate(
+    { _id: session._id, ...scope, documentId, createdBy: auth.userId, status: "uploading", expiresAt: { $gt: new Date() }, "parts.partNumber": { $ne: input.partNumber } },
+    { $push: { parts: { partNumber: input.partNumber, storageKey, byteSize: request.body.length, sha256: actualSha256 } } },
+    { new: true },
+  );
+  if (!updated) {
+    await deleteDocumentObject(storageKey).catch(() => undefined);
+    const latest = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, documentId, createdBy: auth.userId, status: "uploading" }).lean();
+    const raced = latest?.parts.find((part) => part.partNumber === input.partNumber);
+    if (raced?.sha256 === actualSha256 && raced.byteSize === request.body.length) { response.json({ success: true, data: { partNumber: input.partNumber, received: true, idempotent: true } }); return; }
+    throw new HttpError(409, "Upload session changed; retry the part");
+  }
+  response.status(201).json({ success: true, data: { partNumber: input.partNumber, received: true, idempotent: false } });
+});
+
+export const completeDocumentUpload = asyncHandler(async (request: Request, response: Response) => {
+  const { auth, scope } = await projectContext(request);
+  const documentId = String(request.params.documentId);
+  if (!mongoose.isValidObjectId(documentId)) throw new HttpError(404, "Document not found");
+  if (getCollaborationTransactionStatus() !== "enabled") throw new HttpError(503, "Resumable uploads require MongoDB replica-set or sharded-cluster transactions");
+  await requireDocumentUploadManager(scope, auth.userId, auth.role);
+  const uploadId = String(request.params.uploadId);
+  if (!mongoose.isValidObjectId(uploadId)) throw new HttpError(404, "Upload session not found");
+  const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, documentId, createdBy: auth.userId, status: "uploading" });
+  if (!session) throw new HttpError(404, "Upload session not found");
+  if (session.expiresAt.getTime() <= Date.now()) throw new HttpError(410, "Upload session has expired");
+  const parts = [...session.parts].sort((a, b) => a.partNumber - b.partNumber);
+  if (parts.length !== session.expectedParts || parts.some((part, index) => part.partNumber !== index + 1)) throw new HttpError(409, "Upload is incomplete; all parts must be received before completion");
+  if (parts.reduce((total, part) => total + part.byteSize, 0) !== session.totalBytes) throw new HttpError(409, "Upload part sizes do not match the declared file size");
+  const chunks: Buffer[] = [];
+  for (const part of parts) {
+    const chunk = await readDocumentObject(part.storageKey);
+    if (chunk.length !== part.byteSize || createHash("sha256").update(chunk).digest("hex") !== part.sha256) throw new HttpError(503, "Stored upload part integrity check failed");
+    chunks.push(chunk);
+  }
+  const combined = Buffer.concat(chunks, session.totalBytes);
+  const sha256 = createHash("sha256").update(combined).digest("hex");
+  if (session.expectedSha256 && session.expectedSha256 !== sha256) throw new HttpError(422, "Completed file checksum verification failed");
+  const normalized = normalizeDocumentFile(combined, encodeURIComponent(session.fileName), session.contentType);
+  await scanDocumentWithClamAv(normalized.buffer);
+  const storageKey = randomUUID();
+  const lockedSession = await DocumentUploadSession.findOneAndUpdate({ _id: session._id, ...scope, documentId, createdBy: auth.userId, status: "uploading", expiresAt: { $gt: new Date() } }, { $set: { status: "completing" } }, { new: true });
+  if (!lockedSession) throw new HttpError(409, "Upload session is already being completed or has changed");
+  try {
+    await putDocumentObject(storageKey, normalized.buffer, normalized.contentType);
+    const assetId = new mongoose.Types.ObjectId();
+    const result = await runProjectMutationWithEvent({
+      organizationId: auth.organizationId, projectId: String(request.params.projectId), actorId: auth.userId,
+      eventType: "documents.version_added", targetType: "document", targetId: String(session.documentId),
+      summary: "A malware-scanned resumable document upload was completed",
+    }, async (transaction) => {
+      const query = ProjectDocument.findOne({ _id: session.documentId, ...scope });
+      if (transaction) query.session(transaction);
+      const item = await query;
+      if (!item) throw new HttpError(404, "Document not found");
+      if (item.approvalStatus === "submitted" || item.approvalStatus === "approved") throw new HttpError(409, "A new version cannot be added while approval is pending or approved");
+      const version = item.currentVersion + 1;
+      const asset = new DocumentAsset({ _id: assetId, ...scope, documentId: item._id, version, storageKey, fileName: normalized.fileName, contentType: normalized.contentType, byteSize: normalized.buffer.length, sha256, scanStatus: "clean", uploadedBy: auth.userId });
+      await asset.save(transaction ? { session: transaction } : {});
+      item.versions.push({ version, fileAssetId: asset._id, fileUrl: `/projects/${request.params.projectId}/delivery/documents/${item._id}/files/${asset._id}/download`, fileName: normalized.fileName, checksum: sha256, notes: "Malware scan passed; resumable upload", uploadedBy: new mongoose.Types.ObjectId(auth.userId), uploadedAt: new Date() });
+      item.currentVersion = version;
+      item.approvalStatus = "draft";
+      await item.save(transaction ? { session: transaction } : {});
+      await DocumentAuditEvent.create([{ ...scope, documentId: item._id, assetId: asset._id, actorId: auth.userId, action: "uploaded", fileName: normalized.fileName, sha256, requestId: String(response.locals.requestId ?? "") }], transaction ? { session: transaction } : {});
+      return item;
+    });
+    await Promise.all(parts.map((part) => deleteDocumentObject(part.storageKey).catch(() => undefined)));
+    await DocumentUploadSession.deleteOne({ _id: session._id, ...scope, documentId, createdBy: auth.userId });
+    response.status(201).json({ success: true, data: result, asset: { id: String(assetId), fileName: normalized.fileName, contentType: normalized.contentType, byteSize: normalized.buffer.length, sha256, scanStatus: "clean" } });
+  } catch (error) {
+    await deleteDocumentObject(storageKey).catch(() => undefined);
+    await DocumentUploadSession.updateOne({ _id: session._id, ...scope, documentId, createdBy: auth.userId, status: "completing" }, { $set: { status: "uploading" } }).catch(() => undefined);
+    throw error;
+  }
+});
+
+export const abortDocumentUpload = asyncHandler(async (request: Request, response: Response) => {
+  const { auth, scope } = await projectContext(request);
+  const documentId = String(request.params.documentId);
+  if (!mongoose.isValidObjectId(documentId)) throw new HttpError(404, "Document not found");
+  await requireDocumentUploadManager(scope, auth.userId, auth.role);
+  const uploadId = String(request.params.uploadId);
+  if (!mongoose.isValidObjectId(uploadId)) throw new HttpError(404, "Upload session not found");
+  const session = await DocumentUploadSession.findOne({ _id: uploadId, ...scope, documentId, createdBy: auth.userId, status: "uploading" });
+  if (!session) throw new HttpError(404, "Upload session not found");
+  await Promise.all(session.parts.map((part) => deleteDocumentObject(part.storageKey).catch(() => undefined)));
+  await DocumentUploadSession.deleteOne({ _id: session._id, ...scope, documentId, createdBy: auth.userId });
+  response.status(204).end();
 });
 
 export const downloadDocumentFile = asyncHandler(async (request: Request, response: Response) => {
