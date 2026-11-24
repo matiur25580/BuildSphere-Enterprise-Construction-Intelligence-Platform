@@ -12,6 +12,7 @@ const context = (request: Request) => {
   if (!request.auth) throw new HttpError(401, "Authentication required");
   return request.auth;
 };
+// Confirm the requested project belongs to the caller's organization before querying its membership records.
 const projectScope = async (request: Request, organizationId: string) => {
   const projectId = String(request.params.projectId);
   if (!mongoose.isValidObjectId(projectId) || !await Project.exists({ _id: projectId, organizationId })) throw new HttpError(404, "Project not found");
