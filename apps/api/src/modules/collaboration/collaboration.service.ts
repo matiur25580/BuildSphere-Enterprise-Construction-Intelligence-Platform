@@ -31,6 +31,7 @@ export const projectMemberScope = (organizationId: string, projectId: string, us
   ...(userId ? { userId: new mongoose.Types.ObjectId(userId) } : {}),
 });
 
+// Persist project activity and its notification/outbox effects together when a database session is supplied.
 export const publishProjectEvent = async (input: ProjectEventInput, session?: ClientSession): Promise<void> => {
   if (!collaborationEventTypes.includes(input.eventType)) throw new Error("Unsupported collaboration event");
   await CollaborationOutbox.create([{
