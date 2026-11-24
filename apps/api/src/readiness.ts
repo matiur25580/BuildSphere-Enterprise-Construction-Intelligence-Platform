@@ -14,6 +14,7 @@ export type ReadinessResult = {
 };
 
 /** Evaluate every dependency required before this API can receive production traffic. */
+// Check all production-critical dependencies independently and report readiness only when every gate is healthy.
 export const evaluateReadiness = async ({
   mongodbReady,
   collaborationTransactionsReady,
