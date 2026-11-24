@@ -248,7 +248,7 @@ cd BuildSphere-Enterprise-Construction-Intelligence-Platform
 cp .env.example .env
 # Start a local MongoDB replica set and ClamAV service
 docker compose -f infrastructure/docker/compose.yaml up -d
-npm install
+npm ci
 ```
 
 Set at least:
