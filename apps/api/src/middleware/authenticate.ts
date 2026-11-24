@@ -13,6 +13,7 @@ declare global {
   }
 }
 
+// Build shared authentication middleware with an optional active-organization check for route-specific access rules.
 const authenticateRequest = (requireActiveOrganization: boolean) =>
   async (request: Request, response: Response, next: NextFunction) => {
     const authorization = request.headers.authorization;
