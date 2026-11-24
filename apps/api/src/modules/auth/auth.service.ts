@@ -18,6 +18,7 @@ const requiredSecret = (key: "JWT_ACCESS_SECRET"): string => {
   return value;
 };
 
+// Store refresh-token fingerprints rather than reusable plaintext bearer credentials.
 const hashToken = (token: string): string =>
   createHash("sha256").update(token).digest("hex");
 
