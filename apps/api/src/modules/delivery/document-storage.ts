@@ -11,6 +11,7 @@ const MIME_BY_EXTENSION: Record<string, string> = { ".pdf": "application/pdf", "
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 let s3Client: S3Client | undefined;
 
+// Validate upload bytes and normalize the supplied filename before choosing a storage backend.
 export const normalizeDocumentFile = (body: unknown, rawName: string | undefined, contentType: string | undefined) => {
   if (!Buffer.isBuffer(body) || body.length === 0) throw new HttpError(400, "A non-empty document file is required");
   if (body.length > MAX_FILE_BYTES) throw new HttpError(413, "Document files are limited to 25 MB");
