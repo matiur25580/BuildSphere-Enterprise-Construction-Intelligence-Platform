@@ -97,7 +97,7 @@ A sustainability concept for embodied carbon, material impacts, waste diversion 
 |---|---|
 | Web application | React 19, TypeScript, Vite |
 | API | Node.js 22+, Express 5, TypeScript |
-| Persistence | MongoDB 7+, Mongoose 8 |
+| Persistence | MongoDB 7+, Mongoose 9 |
 | Validation | Zod |
 | Authentication | JWT access tokens, bcrypt password hashing, opaque rotating refresh sessions |
 | Security | Helmet, CORS allowlist, rate limiting, request IDs, tenant-scoped queries |
@@ -106,7 +106,7 @@ A sustainability concept for embodied carbon, material impacts, waste diversion 
 | Quality gates | TypeScript builds, Node test runner, MongoDB replica-set integration tests, Docker image build |
 | Runtime | Multi-stage Docker image; API runs as non-root `node` |
 
-The repository is an npm workspace monorepo:
+The repository is an npm workspace monorepo. Root scripts orchestrate API and web development, builds, tests and linting; the Playwright E2E runner is configured at the repository root:
 
 ```text
 apps/
@@ -255,9 +255,11 @@ Set at least:
 - `MONGODB_URI`
 - `JWT_ACCESS_SECRET` (unique random secret, at least 32 characters)
 - `CLIENT_URL` (exact frontend origin)
-- `OUTBOX_TRANSACTION_MODE`
+- `OUTBOX_TRANSACTION_MODE` (`required` is recommended for production)
 
-The included Compose file starts a single-node MongoDB replica set and a private ClamAV service for local development. Wait for MongoDB to become healthy and allow ClamAV to finish its initial signature setup before uploading files. The sample `.env` uses `replicaSet=rs0` and `OUTBOX_TRANSACTION_MODE=required`; secure document uploads return `503` until both transaction support and malware scanning are available.
+The root `.env.example` also documents local `CLAMD_HOST`, `CLAMD_PORT`, and `DOCUMENT_STORAGE_DIR` settings. For production, configure `DOCUMENT_STORAGE_PROVIDER=s3`, `DOCUMENT_S3_BUCKET`, and `DOCUMENT_S3_REGION` (or `AWS_REGION`). An optional custom S3-compatible endpoint uses `DOCUMENT_S3_ENDPOINT`; providers requiring path-style addressing can set `DOCUMENT_S3_FORCE_PATH_STYLE=true`. Supply `DOCUMENT_S3_ACCESS_KEY_ID` and `DOCUMENT_S3_SECRET_ACCESS_KEY` together when workload identity is not available. `DOCUMENT_STORAGE_HEALTH_TIMEOUT_MS` controls the bounded S3 readiness probe (500–30,000 ms; default 3,000 ms). Keep bucket credentials server-side and use a private bucket policy. See [document object-storage operations](docs/operations/document-object-storage.md).
+
+The included Compose file starts a single-node MongoDB replica set and a private ClamAV service for local development. Wait for MongoDB to become healthy and allow ClamAV to finish its initial signature setup before uploading files. The sample `.env` uses `replicaSet=rs0` and `OUTBOX_TRANSACTION_MODE=required`; secure document uploads return `503` until both transaction support and malware scanning are available. Local development defaults to private filesystem storage; production startup requires an explicitly configured S3-compatible provider.
 
 For document upload testing, also configure `CLAMD_HOST`, `CLAMD_PORT`, and a writable `DOCUMENT_STORAGE_DIR`. The API deliberately rejects uploads when malware scanning is not configured.
 
@@ -274,11 +276,17 @@ npm run dev
 ### Build and test
 
 ```bash
+# Compile both workspaces
 npm run build
-npm test --workspace=@buildsphere/api
+
+# Run API and web test scripts
+npm test
+
+# Web lint (same command used in CI)
+npm run lint
 ```
 
-The MongoDB integration suites require `MONGODB_URI` pointing to a transaction-capable replica set and a `JWT_ACCESS_SECRET` of at least 32 characters. The secure document suite starts a local fake ClamAV protocol endpoint to verify clean and malware-positive scanner outcomes; production scanner effectiveness depends on the real ClamAV service and current signatures.
+The MongoDB-backed API integration suites require `MONGODB_URI` pointing to a transaction-capable replica set and a `JWT_ACCESS_SECRET` of at least 32 characters. The secure document suite starts a local fake ClamAV protocol endpoint to verify clean and malware-positive scanner outcomes; production scanner effectiveness depends on the real ClamAV service and current signatures. The browser end-to-end suite is run with `npm run test:e2e`. The CI workflow installs the pinned Playwright tooling and Chromium browser before executing it; local execution also requires the `@playwright/test` package and Chromium browser to be available.
 
 ## 7. API route map
 
@@ -300,12 +308,14 @@ All protected routes use bearer access tokens. See the linked API documents for 
 
 ## 8. CI and verification
 
-GitHub Actions runs on pushes to all branches and on pull requests targeting any branch, so stacked feature branches receive the same validation as pull requests targeting `main`. Superseded runs for the same workflow/ref are cancelled. The pipeline:
+GitHub Actions runs on pushes and pull requests targeting all branches; superseded runs for the same workflow/ref are cancelled. The pipeline:
 1. Starts a MongoDB 7 single-node replica set.
-2. Installs workspace dependencies on Node.js 22.
-3. Builds API and web workspaces.
-4. Runs API unit tests and MongoDB-backed integration tests.
-5. Builds the production API Docker image.
+2. Installs workspace dependencies on Node.js 22 and pinned lint/E2E tooling.
+3. Runs the web ESLint checks and a production-dependency audit.
+4. Builds the API and web workspaces.
+5. Runs web unit tests and API unit plus MongoDB-backed integration tests.
+6. Installs Chromium and runs the Playwright browser end-to-end suite.
+7. Builds the production API Docker image.
 
 Tests cover security configuration, intelligence rules, collaboration scoping, notification ownership, HTTP/JWT role and tenant boundaries, transactional outbox rollback/commit, worker lease recovery/fencing, organization governance, exact commercial decimal schemas, local and S3 document-storage configuration and readiness timeouts, secure document upload/download scanning and authorization, IFC upload validation, BIM model registration, IFC GlobalId issue references, viewpoint validation, and BIM tenant/role boundaries.
 
@@ -313,7 +323,7 @@ CI success demonstrates that the checked-in build and automated test suite passe
 
 ## 9. Roadmap — next enterprise increments
 
-1. **Distributed document storage:** S3-compatible adapter, signed access, resumable multipart uploads, retention and orphan reconciliation.
+1. **Document lifecycle maturity:** resumable multipart uploads, retention automation, orphan reconciliation, lifecycle policies and storage recovery exercises.
 2. **BIM and drawing depth:** full BCF 2.1/3.0 import/export, IFC geometry/property extraction, model federation, WebGL viewer, automatic clash detection, DWG/RVT integrations and drawing markup.
 3. **Enterprise identity:** MFA, SSO/OIDC/SAML, SCIM provisioning, delegated administration and organization switching.
 4. **Project controls depth:** Gantt, critical path, schedule baselines, earned value, change control and resource loading.
