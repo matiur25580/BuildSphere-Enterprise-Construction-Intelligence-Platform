@@ -11,6 +11,7 @@ import { BimIssue } from "./bim-issue.model.js";
 import { registerBimModelSchema, createBimIssueSchema, updateBimIssueSchema } from "./bim.schemas.js";
 import { runProjectMutationWithEvent } from "../collaboration/collaboration.service.js";
 
+// Establish authenticated organization and active project membership before BIM operations proceed.
 const context = async (request: Request) => {
   if (!request.auth) throw new HttpError(401, "Authentication required");
   const projectId = String(request.params.projectId);
