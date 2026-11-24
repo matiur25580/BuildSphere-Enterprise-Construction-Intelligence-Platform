@@ -17,6 +17,7 @@ declare global {
  * Organization owners/admins retain organization-wide access, but the project
  * must still belong to their authenticated organization.
  */
+// Resolve project access inside the authenticated organization before allowing project-scoped operations.
 export const requireProjectAccess = () =>
   async (request: Request, _response: Response, next: NextFunction) => {
     try {
